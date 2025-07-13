@@ -1,3 +1,4 @@
+import clsx from 'clsx';
 import { Grid } from '../types';
 import Marble from './Marble';
 
@@ -21,7 +22,11 @@ export default function GameBoard({ grid }: GameBoardProps) {
         {grid.flat().map((cell, index) => (
           <div
             key={index}
-            className="border border-gray-300 flex items-center justify-center relative aspect-square"
+            className={clsx(
+              "border border-gray-300 flex items-center justify-center relative aspect-square transition-colors",
+              cell.hasBattle && "bg-red-200 animate-pulse"
+            )}
+            title={`Function: ${cell.func}`}
           >
             {cell.marbles.map(marble => (
               <Marble key={marble.id} marble={marble} />

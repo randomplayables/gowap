@@ -24,7 +24,12 @@ function App() {
               <GameOver winner={gameState.winner} onRestart={resetGame} />
             ) : (
               <div>
-                <GameControls onNextTurn={nextTurn} turn={gameState.turn} onReset={resetGame}/>
+                <GameControls 
+                  onNextTurn={nextTurn} 
+                  turn={gameState.turn} 
+                  onReset={resetGame}
+                  isBattlePending={gameState.battlePending}
+                />
                 <GameBoard grid={gameState.grid} />
               </div>
             )}

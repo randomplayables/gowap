@@ -44,6 +44,7 @@ export const useGowapGame = () => {
             winner: null,
             gameMode: config.gameMode,
             maxRounds: config.maxRounds,
+            battlePending: false,
         };
 
         // Initial population of the grid

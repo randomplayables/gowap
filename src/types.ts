@@ -17,6 +17,7 @@ export interface Cell {
   marbles: Marble[];
   // The function is represented by its string definition for user customization
   func: string; 
+  hasBattle?: boolean;
 }
 
 export type Grid = Cell[][];
@@ -48,4 +49,5 @@ export interface GameState {
   winner: TeamID | null;
   gameMode: GameMode;
   maxRounds: number;
+  battlePending?: boolean;
 }

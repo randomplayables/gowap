@@ -1,25 +1,70 @@
 import { GameState, Marble, Cell, TeamID } from '../types';
 
 /**
- * Executes one turn of the game, updating the state.
+ * Orchestrates the game turn, switching between movement and resolution phases.
  */
 export function runGameTurn(prevState: GameState): GameState {
+  if (prevState.battlePending) {
+    return calculateResolutionPhase(prevState);
+  } else {
+    return calculateMovementPhase(prevState);
+  }
+}
+
+/**
+ * PHASE 1: Move marbles and identify upcoming battles.
+ */
+function calculateMovementPhase(prevState: GameState): GameState {
   const state: GameState = JSON.parse(JSON.stringify(prevState));
-
-  // 1. Move all living marbles
+  
+  // 1. Move all living marbles to their new positions
   moveMarbles(state);
+  
+  // 2. Identify and flag cells with battles
+  let battleDetected = false;
+  state.grid.flat().forEach(cell => {
+    if (cell.marbles.length > 1) {
+      const teamsOnCell = new Set(cell.marbles.map(m => m.team));
+      if (teamsOnCell.size > 1) {
+        cell.hasBattle = true;
+        battleDetected = true;
+      }
+    }
+  });
 
-  // 2. Resolve interactions on each cell
-  resolveCellInteractions(state);
+  // 3. Set the battlePending flag if any battles were found
+  state.battlePending = battleDetected;
 
-  // 3. Increment turn counter
-  state.turn += 1;
-
-  // 4. Check for win conditions
-  checkWinConditions(state);
+  // If no battles, immediately resolve the turn
+  if (!battleDetected) {
+    return calculateResolutionPhase(state);
+  }
 
   return state;
 }
+
+/**
+ * PHASE 2: Resolve interactions, apply functions, and check for game over.
+ */
+function calculateResolutionPhase(prevState: GameState): GameState {
+    const state: GameState = JSON.parse(JSON.stringify(prevState));
+
+    // 1. Resolve interactions (battles and reproduction) on each cell
+    resolveCellInteractions(state);
+    
+    // 2. Reset battle flags
+    state.grid.flat().forEach(cell => cell.hasBattle = false);
+    state.battlePending = false;
+
+    // 3. Increment turn counter
+    state.turn += 1;
+
+    // 4. Check for win conditions
+    checkWinConditions(state);
+  
+    return state;
+}
+
 
 function moveMarbles(state: GameState) {
   const gridSize = state.grid.length;
