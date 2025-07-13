@@ -104,8 +104,8 @@ function resolveCellInteractions(state: GameState) {
                 handleTeamReproduction(cell, state);
             }
         }
-        // Apply cell function to any single marbles
-        applyCellFunctionToSurvivors(cell);
+        // Apply cell function to any marbles on the cell, using the main state
+        applyCellFunctionToSurvivors(cell, state);
     });
     updateGridMarbles(state);
 }
@@ -135,7 +135,7 @@ function handleTeamBattle(cell: Cell, state: GameState) {
   const totalWinnerContribution = winningTeam === 'A' ? teamA_sum : teamB_sum;
 
   winningMarbles.forEach(marble => {
-    const proportion = marble.inputValue / totalWinnerContribution;
+    const proportion = totalWinnerContribution > 0 ? (marble.inputValue / totalWinnerContribution) : (1 / winningMarbles.length);
     const globalMarble = findGlobalMarble(marble.id, state);
     if (globalMarble) {
       globalMarble.inputValue = difference * proportion;
@@ -176,20 +176,20 @@ function handleTeamReproduction(cell: Cell, state: GameState) {
 }
 
 
-function applyCellFunctionToSurvivors(cell: Cell) {
-    cell.marbles.forEach(marble => {
-        if(marble.isAlive) {
-            try {
-                // Create a function from the string and execute it
-                const func = new Function('x', cell.func);
-                const output = func(marble.inputValue);
-                marble.outputValue = output;
-                // The output of this turn becomes the input for the next
-                marble.inputValue = output;
-            } catch (e) {
-                console.error(`Error executing function at ${cell.position.row},${cell.position.col}:`, e);
-                // If func fails, keep the value the same
-                marble.outputValue = marble.inputValue;
+function applyCellFunctionToSurvivors(cell: Cell, state: GameState) {
+    cell.marbles.forEach(marbleOnCell => {
+        if (marbleOnCell.isAlive) {
+            const globalMarble = findGlobalMarble(marbleOnCell.id, state);
+            if (globalMarble) {
+                try {
+                    const func = new Function('x', cell.func);
+                    const output = func(globalMarble.inputValue);
+                    globalMarble.outputValue = output;
+                    globalMarble.inputValue = output;
+                } catch (e) {
+                    console.error(`Error executing function at ${cell.position.row},${cell.position.col}:`, e);
+                    globalMarble.outputValue = globalMarble.inputValue;
+                }
             }
         }
     });
