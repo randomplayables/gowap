@@ -12,7 +12,7 @@ export default function Marble({ marble }: MarbleProps) {
   return (
     <div
       className={clsx(
-        "w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-md m-1",
+        "w-12 h-12 rounded-full flex items-center justify-center text-white text-xl font-bold shadow-md m-1",
         teamColor
       )}
       title={`Team ${marble.team} | Value: ${marble.outputValue.toFixed(2)}`}
