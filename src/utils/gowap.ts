@@ -120,6 +120,25 @@ function handleTeamBattle(cell: Cell, state: GameState) {
   const teamA_sum = teamA_marbles.reduce((sum, m) => sum + m.inputValue, 0);
   const teamB_sum = teamB_marbles.reduce((sum, m) => sum + m.inputValue, 0);
 
+  // New logic for handling ties
+  if (teamA_sum === teamB_sum) {
+    // It's a tie. Both sides are depleted.
+    // Set the inputValue of all involved marbles to 0.
+    teamA_marbles.forEach(marble => {
+      const globalMarble = findGlobalMarble(marble.id, state);
+      if (globalMarble) {
+        globalMarble.inputValue = 0;
+      }
+    });
+    teamB_marbles.forEach(marble => {
+      const globalMarble = findGlobalMarble(marble.id, state);
+      if (globalMarble) {
+        globalMarble.inputValue = 0;
+      }
+    });
+    return; // Exit after handling the tie.
+  }
+
   const winningTeam = teamA_sum > teamB_sum ? 'A' : 'B';
   const losingTeam = winningTeam === 'A' ? 'B' : 'A';
   
