@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { GameConfig, Gender } from '../types';
+import { GameConfig, Gender, MarblePosition } from '../types';
 import clsx from 'clsx';
 
 interface GameSetupProps {
@@ -23,11 +23,18 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
   const [editingCell, setEditingCell] = useState<{ row: number; col: number } | null>(null);
   const [currentFunctionBody, setCurrentFunctionBody] = useState(defaultCellFunction);
 
+  // New state for marble placement
+  const [teamAPositions, setTeamAPositions] = useState<MarblePosition[]>([]);
+  const [teamBPositions, setTeamBPositions] = useState<MarblePosition[]>([]);
+
   const handleNumMarblesChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const count = parseInt(e.target.value, 10);
     setNumMarbles(count);
     const initialValue = Math.floor(totalInitialValue / count);
     setMarbleSettings(Array.from({ length: count }, () => ({ initialValue, gender: 'M' })));
+    // Reset placements when number of marbles changes
+    setTeamAPositions([]);
+    setTeamBPositions([]);
   };
 
   const handleMarbleSettingChange = (index: number, field: 'initialValue' | 'gender', value: string | number) => {
@@ -55,6 +62,31 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
     }
   };
 
+  const handlePlacement = (row: number, col: number) => {
+    const position: MarblePosition = { row, col };
+    if (row === 0) { // Team A placement
+        setTeamAPositions(prev => {
+            const isPlaced = prev.some(p => p.row === row && p.col === col);
+            if (isPlaced) {
+                return prev.filter(p => !(p.row === row && p.col === col));
+            } else if (prev.length < numMarbles) {
+                return [...prev, position];
+            }
+            return prev;
+        });
+    } else if (row === gridSize - 1) { // Team B placement
+        setTeamBPositions(prev => {
+            const isPlaced = prev.some(p => p.row === row && p.col === col);
+            if (isPlaced) {
+                return prev.filter(p => !(p.row === row && p.col === col));
+            } else if (prev.length < numMarbles) {
+                return [...prev, position];
+            }
+            return prev;
+        });
+    }
+  };
+
   const currentTotal = marbleSettings.reduce((sum, s) => sum + s.initialValue, 0);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -63,8 +95,12 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
         alert(`The sum of marble values must be exactly ${totalInitialValue}.`);
         return;
     }
+    if (teamAPositions.length !== numMarbles || teamBPositions.length !== numMarbles) {
+        alert(`Please place all ${numMarbles} marbles for each team.`);
+        return;
+    }
     onSetupComplete({
-      gridSize, numMarbles, totalInitialValue, gameMode, maxRounds, marbleSettings, customFunctions
+      gridSize, numMarbles, totalInitialValue, gameMode, maxRounds, marbleSettings, customFunctions, teamAPositions, teamBPositions
     });
   };
 
@@ -125,6 +161,54 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
             </div>
           )}
           
+           {/* Marble Placement */}
+           <div className="border-t pt-4">
+              <h3 className="font-medium">Marble Placement</h3>
+              <p className="text-sm text-gray-500 mb-2">Team A places on the top row, Team B on the bottom. Click to place/remove marbles.</p>
+              <p className="text-sm font-bold text-blue-600">Team A Placed: {teamAPositions.length} / {numMarbles}</p>
+              <p className="text-sm font-bold text-red-600">Team B Placed: {teamBPositions.length} / {numMarbles}</p>
+              <div className="bg-gray-100 p-2 rounded mt-2">
+                  <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${gridSize}, 1fr)`}}>
+                      {Array.from({length: gridSize * gridSize}).map((_, i) => {
+                          const row = Math.floor(i / gridSize);
+                          const col = i % gridSize;
+                          const isTeamAPlacementZone = row === 0;
+                          const isTeamBPlacementZone = row === gridSize - 1;
+                          const isAPlaced = teamAPositions.some(p => p.row === row && p.col === col);
+                          const isBPlaced = teamBPositions.some(p => p.row === row && p.col === col);
+
+                          const canPlaceA = isTeamAPlacementZone && teamAPositions.length < numMarbles;
+                          const canPlaceB = isTeamBPlacementZone && teamBPositions.length < numMarbles;
+
+                          return (
+                              <button
+                                  type="button"
+                                  key={`${row}-${col}`}
+                                  onClick={() => handlePlacement(row, col)}
+                                  disabled={!isTeamAPlacementZone && !isTeamBPlacementZone}
+                                  className={clsx(
+                                      "aspect-square rounded text-xs transition-colors",
+                                      {
+                                          "bg-gray-200": !isTeamAPlacementZone && !isTeamBPlacementZone,
+                                          "bg-blue-200 hover:bg-blue-300": isTeamAPlacementZone && !isAPlaced,
+                                          "bg-red-200 hover:bg-red-300": isTeamBPlacementZone && !isBPlaced,
+                                          "bg-blue-500": isAPlaced,
+                                          "bg-red-500": isBPlaced,
+                                          "cursor-not-allowed opacity-50": 
+                                              (isTeamAPlacementZone && !isAPlaced && !canPlaceA) ||
+                                              (isTeamBPlacementZone && !isBPlaced && !canPlaceB)
+                                      }
+                                  )}
+                                  title={`Place marble at (${row},${col})`}
+                              >
+                                {isAPlaced ? 'A' : isBPlaced ? 'B' : ''}
+                              </button>
+                          );
+                      })}
+                  </div>
+              </div>
+            </div>
+
           {/* Cell Functions */}
           <div className="border-t pt-4">
             <h3 className="font-medium">Cell Functions (Optional)</h3>

@@ -18,21 +18,24 @@ export const useGowapGame = () => {
 
         const teams: Record<TeamID, Team> = { A: { id: 'A', marbles: [] }, B: { id: 'B', marbles: [] } };
         
-        // Team A starts at the top row, Team B at the bottom
+        // Use user-defined positions for marbles
         for (let i = 0; i < config.numMarbles; i++) {
             const setting = config.marbleSettings[i];
-            const colA = Math.floor((i / config.numMarbles) * config.gridSize);
+            
+            // Team A
             teams.A.marbles.push({
                 id: `A-${i}`, team: 'A', gender: setting.gender,
                 inputValue: setting.initialValue, outputValue: setting.initialValue,
-                position: { row: 0, col: colA }, isAlive: true,
+                position: config.teamAPositions[i],
+                isAlive: true,
             });
 
-            const colB = Math.floor((i / config.numMarbles) * config.gridSize);
+            // Team B
             teams.B.marbles.push({
                 id: `B-${i}`, team: 'B', gender: setting.gender,
                 inputValue: setting.initialValue, outputValue: setting.initialValue,
-                position: { row: config.gridSize - 1, col: colB }, isAlive: true,
+                position: config.teamBPositions[i],
+                isAlive: true,
             });
         }
         

@@ -2,21 +2,26 @@ export type Gender = 'M' | 'F';
 export type TeamID = 'A' | 'B';
 export type GameMode = 'Last Standing' | 'Rounds';
 
+export interface MarblePosition {
+  row: number;
+  col: number;
+}
+
 export interface Marble {
   id: string;
   team: TeamID;
   gender: Gender;
   inputValue: number;
   outputValue: number;
-  position: { row: number; col: number };
+  position: MarblePosition;
   isAlive: boolean;
 }
 
 export interface Cell {
-  position: { row: number; col: number };
+  position: MarblePosition;
   marbles: Marble[];
   // The function is represented by its string definition for user customization
-  func: string; 
+  func: string;
   hasBattle?: boolean;
 }
 
@@ -39,6 +44,8 @@ export interface GameConfig {
   }[];
   // Allows custom functions per cell
   customFunctions?: Record<string, string>; // e.g. { "0,0": "return x * 1.1;" }
+  teamAPositions: MarblePosition[];
+  teamBPositions: MarblePosition[];
 }
 
 export interface GameState {
