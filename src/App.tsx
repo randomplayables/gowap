@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useGowapGame } from './hooks/useGowapGame';
 import GameSetup from './components/GameSetup';
 import GameBoard from './components/GameBoard';
@@ -7,6 +8,38 @@ import './App.css';
 
 function App() {
   const { gameState, initializeGame, nextTurn, resetGame } = useGowapGame();
+  const [isAutoPlayActive, setIsAutoPlayActive] = useState(false);
+  const [autoPlaySpeed, setAutoPlaySpeed] = useState(1000); // Default speed: 1 second
+
+  // Effect to handle the auto-play game loop
+  useEffect(() => {
+    // Do nothing if auto-play is not active or the game is over
+    if (!isAutoPlayActive || !gameState || gameState.isGameOver) {
+      return;
+    }
+
+    // Set up an interval to call nextTurn at the specified speed
+    const intervalId = setInterval(() => {
+      nextTurn();
+    }, autoPlaySpeed);
+
+    // Cleanup function to clear the interval when the component unmounts
+    // or when the dependencies of the effect change
+    return () => clearInterval(intervalId);
+  }, [isAutoPlayActive, autoPlaySpeed, gameState, nextTurn]);
+
+  const toggleAutoPlay = () => {
+    setIsAutoPlayActive(prev => !prev);
+  };
+
+  const handleAutoPlaySpeedChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setAutoPlaySpeed(Number(e.target.value));
+  };
+
+  const handleReset = () => {
+    setIsAutoPlayActive(false); // Stop auto-play on reset
+    resetGame();
+  };
 
   return (
     <div className="min-h-screen bg-gray-100 text-gray-800 p-4">
@@ -21,14 +54,18 @@ function App() {
         ) : (
           <>
             {gameState.isGameOver ? (
-              <GameOver winner={gameState.winner} onRestart={resetGame} />
+              <GameOver winner={gameState.winner} onRestart={handleReset} />
             ) : (
               <div>
                 <GameControls 
                   onNextTurn={nextTurn} 
                   turn={gameState.turn} 
-                  onReset={resetGame}
+                  onReset={handleReset}
                   isBattlePending={gameState.battlePending}
+                  isAutoPlayActive={isAutoPlayActive}
+                  onToggleAutoPlay={toggleAutoPlay}
+                  autoPlaySpeed={autoPlaySpeed}
+                  onAutoPlaySpeedChange={handleAutoPlaySpeedChange}
                 />
                 <GameBoard grid={gameState.grid} />
               </div>
