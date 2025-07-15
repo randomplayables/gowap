@@ -18,19 +18,20 @@ export const useGowapGame = () => {
 
         const teams: Record<TeamID, Team> = { A: { id: 'A', marbles: [] }, B: { id: 'B', marbles: [] } };
         
-        // Use user-defined positions for marbles
+        // Use user-defined settings and positions for marbles for Team A
         for (let i = 0; i < config.numMarbles; i++) {
-            const setting = config.marbleSettings[i];
-            
-            // Team A
+            const setting = config.teamAMarbleSettings[i];
             teams.A.marbles.push({
                 id: `A-${i}`, team: 'A', gender: setting.gender,
                 inputValue: setting.initialValue, outputValue: setting.initialValue,
                 position: config.teamAPositions[i],
                 isAlive: true,
             });
-
-            // Team B
+        }
+        
+        // Use user-defined settings and positions for marbles for Team B
+        for (let i = 0; i < config.numMarbles; i++) {
+            const setting = config.teamBMarbleSettings[i];
             teams.B.marbles.push({
                 id: `B-${i}`, team: 'B', gender: setting.gender,
                 inputValue: setting.initialValue, outputValue: setting.initialValue,

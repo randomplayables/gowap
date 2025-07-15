@@ -1,50 +1,60 @@
-import { useState } from 'react';
-import { GameConfig, Gender, MarblePosition } from '../types';
+import { useState, useMemo } from 'react';
+import { GameConfig, Gender, MarblePosition, StartZoneType, TeamID } from '../types';
 import clsx from 'clsx';
 
 interface GameSetupProps {
   onSetupComplete: (config: GameConfig) => void;
 }
 
-const defaultCellFunction = "return x * 1.05;";
+const defaultCellFunction = "return x * 1.5 + 1;";
 
 export default function GameSetup({ onSetupComplete }: GameSetupProps) {
   const [gridSize, setGridSize] = useState(5);
-  const [numMarbles, setNumMarbles] = useState(3);
+  const [numMarbles, setNumMarbles] = useState(4);
   const [totalInitialValue] = useState(100);
   const [gameMode, setGameMode] = useState<'Last Standing' | 'Rounds'>('Last Standing');
   const [maxRounds, setMaxRounds] = useState(50);
-  const [marbleSettings, setMarbleSettings] = useState<{ initialValue: number; gender: Gender }[]>(
-    Array.from({ length: 3 }, () => ({ initialValue: Math.floor(100 / 3), gender: 'M' }))
-  );
   
-  // New state for function editing
+  // Separate marble settings for each team
+  const [teamAMarbleSettings, setTeamAMarbleSettings] = useState<{ initialValue: number; gender: Gender }[]>(
+    Array.from({ length: 4 }, () => ({ initialValue: Math.floor(100 / 4), gender: 'M' }))
+  );
+  const [teamBMarbleSettings, setTeamBMarbleSettings] = useState<{ initialValue: number; gender: Gender }[]>(
+    Array.from({ length: 4 }, () => ({ initialValue: Math.floor(100 / 4), gender: 'M' }))
+  );
+
+  // Function editing state
   const [customFunctions, setCustomFunctions] = useState<Record<string, string>>({});
   const [editingCell, setEditingCell] = useState<{ row: number; col: number } | null>(null);
   const [currentFunctionBody, setCurrentFunctionBody] = useState(defaultCellFunction);
 
-  // New state for marble placement
+  // Placement and zone configuration state
   const [teamAPositions, setTeamAPositions] = useState<MarblePosition[]>([]);
   const [teamBPositions, setTeamBPositions] = useState<MarblePosition[]>([]);
+  const [startZoneConfig, setStartZoneConfig] = useState<Record<string, StartZoneType>>({});
 
   const handleNumMarblesChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const count = parseInt(e.target.value, 10);
     setNumMarbles(count);
-    const initialValue = Math.floor(totalInitialValue / count);
-    setMarbleSettings(Array.from({ length: count }, () => ({ initialValue, gender: 'M' })));
-    // Reset placements when number of marbles changes
+    const initialValue = count > 0 ? Math.floor(totalInitialValue / count) : 0;
+    const newSettings = Array.from({ length: count }, () => ({ initialValue, gender: 'M' as Gender }));
+    setTeamAMarbleSettings(newSettings);
+    setTeamBMarbleSettings(newSettings);
     setTeamAPositions([]);
     setTeamBPositions([]);
   };
 
-  const handleMarbleSettingChange = (index: number, field: 'initialValue' | 'gender', value: string | number) => {
-    const newSettings = [...marbleSettings];
-    if (field === 'initialValue') {
-      newSettings[index].initialValue = Number(value);
-    } else {
-      newSettings[index].gender = value as Gender;
-    }
-    setMarbleSettings(newSettings);
+  const handleMarbleSettingChange = (team: TeamID, index: number, field: 'initialValue' | 'gender', value: string | number) => {
+    const setter = team === 'A' ? setTeamAMarbleSettings : setTeamBMarbleSettings;
+    setter(prevSettings => {
+        const newSettings = [...prevSettings];
+        if (field === 'initialValue') {
+            newSettings[index].initialValue = Number(value);
+        } else {
+            newSettings[index].gender = value as Gender;
+        }
+        return newSettings;
+    });
   };
   
   const handleOpenFunctionEditor = (row: number, col: number) => {
@@ -62,22 +72,49 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
     }
   };
 
+  const handleZoneChange = (row: number, col: number) => {
+    const cellKey = `${row},${col}`;
+    const currentZone = startZoneConfig[cellKey] ?? 'Both';
+    const zoneCycle: StartZoneType[] = ['None', 'A', 'B', 'Both'];
+    const nextZoneIndex = (zoneCycle.indexOf(currentZone) + 1) % zoneCycle.length;
+    const nextZone = zoneCycle[nextZoneIndex];
+    setStartZoneConfig(prev => ({ ...prev, [cellKey]: nextZone }));
+  };
+
   const handlePlacement = (row: number, col: number) => {
     const position: MarblePosition = { row, col };
-    if (row === 0) { // Team A placement
+    const cellKey = `${row},${col}`;
+    const zoneType = startZoneConfig[cellKey] ?? 'Both';
+
+    const isOccupiedByA = teamAPositions.some(p => p.row === row && p.col === col);
+    const isOccupiedByB = teamBPositions.some(p => p.row === row && p.col === col);
+
+    let placeFor: TeamID | null = null;
+    if (zoneType === 'A') {
+        placeFor = 'A';
+    } else if (zoneType === 'B') {
+        placeFor = 'B';
+    } else if (zoneType === 'Both') {
+        // For 'Both' zones, alternate placement between teams based on who has fewer marbles placed.
+        if (teamAPositions.length <= teamBPositions.length) {
+            placeFor = 'A';
+        } else {
+            placeFor = 'B';
+        }
+    }
+
+    if (placeFor === 'A' && !isOccupiedByB) {
         setTeamAPositions(prev => {
-            const isPlaced = prev.some(p => p.row === row && p.col === col);
-            if (isPlaced) {
+            if (isOccupiedByA) {
                 return prev.filter(p => !(p.row === row && p.col === col));
             } else if (prev.length < numMarbles) {
                 return [...prev, position];
             }
             return prev;
         });
-    } else if (row === gridSize - 1) { // Team B placement
+    } else if (placeFor === 'B' && !isOccupiedByA) {
         setTeamBPositions(prev => {
-            const isPlaced = prev.some(p => p.row === row && p.col === col);
-            if (isPlaced) {
+            if (isOccupiedByB) {
                 return prev.filter(p => !(p.row === row && p.col === col));
             } else if (prev.length < numMarbles) {
                 return [...prev, position];
@@ -87,20 +124,39 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
     }
   };
 
-  const currentTotal = marbleSettings.reduce((sum, s) => sum + s.initialValue, 0);
+  const teamACurrentTotal = useMemo(() => teamAMarbleSettings.reduce((sum, s) => sum + s.initialValue, 0), [teamAMarbleSettings]);
+  const teamBCurrentTotal = useMemo(() => teamBMarbleSettings.reduce((sum, s) => sum + s.initialValue, 0), [teamBMarbleSettings]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (currentTotal !== totalInitialValue) {
-        alert(`The sum of marble values must be exactly ${totalInitialValue}.`);
+    if (teamACurrentTotal !== totalInitialValue) {
+        alert(`Team A's sum of marble values must be exactly ${totalInitialValue}.`);
+        return;
+    }
+    if (teamBCurrentTotal !== totalInitialValue) {
+        alert(`Team B's sum of marble values must be exactly ${totalInitialValue}.`);
         return;
     }
     if (teamAPositions.length !== numMarbles || teamBPositions.length !== numMarbles) {
         alert(`Please place all ${numMarbles} marbles for each team.`);
         return;
     }
+    
+    const finalStartZoneConfig = { ...startZoneConfig };
+    for (let r = 0; r < gridSize; r++) {
+        for (let c = 0; c < gridSize; c++) {
+            const key = `${r},${c}`;
+            if (!finalStartZoneConfig[key]) {
+                finalStartZoneConfig[key] = 'Both';
+            }
+        }
+    }
+
     onSetupComplete({
-      gridSize, numMarbles, totalInitialValue, gameMode, maxRounds, marbleSettings, customFunctions, teamAPositions, teamBPositions
+      gridSize, numMarbles, totalInitialValue, gameMode, maxRounds, 
+      teamAMarbleSettings, teamBMarbleSettings,
+      customFunctions, teamAPositions, teamBPositions, 
+      startZoneConfig: finalStartZoneConfig
     });
   };
 
@@ -127,21 +183,39 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
             </select>
           </div>
 
-          {/* Marble Settings */}
+          {/* Team A Marble Settings */}
           <div className="border-t pt-4">
-              <h3 className="font-medium">Distribute Initial Value ({totalInitialValue} total)</h3>
-              {marbleSettings.map((setting, i) => (
+              <h3 className="font-medium text-blue-600">Team A: Distribute Initial Value ({totalInitialValue} total)</h3>
+              {teamAMarbleSettings.map((setting, i) => (
                   <div key={i} className="flex items-center space-x-2 mt-2">
                       <span className="font-mono">M{i+1}:</span>
-                      <input type="number" value={setting.initialValue} onChange={(e) => handleMarbleSettingChange(i, 'initialValue', e.target.value)} className="w-1/2 p-1 border rounded"/>
-                      <select value={setting.gender} onChange={(e) => handleMarbleSettingChange(i, 'gender', e.target.value)} className="w-1/2 p-1 border rounded">
+                      <input type="number" value={setting.initialValue} onChange={(e) => handleMarbleSettingChange('A', i, 'initialValue', e.target.value)} className="w-1/2 p-1 border rounded"/>
+                      <select value={setting.gender} onChange={(e) => handleMarbleSettingChange('A', i, 'gender', e.target.value)} className="w-1/2 p-1 border rounded">
                           <option value="M">Male</option>
                           <option value="F">Female</option>
                       </select>
                   </div>
               ))}
-              <p className={`text-sm mt-2 ${currentTotal !== totalInitialValue ? 'text-red-500' : 'text-green-600'}`}>
-                  Current Total: {currentTotal} / {totalInitialValue}
+              <p className={`text-sm mt-2 ${teamACurrentTotal !== totalInitialValue ? 'text-red-500' : 'text-green-600'}`}>
+                  Current Total: {teamACurrentTotal} / {totalInitialValue}
+              </p>
+          </div>
+
+          {/* Team B Marble Settings */}
+          <div className="border-t pt-4">
+              <h3 className="font-medium text-red-600">Team B: Distribute Initial Value ({totalInitialValue} total)</h3>
+              {teamBMarbleSettings.map((setting, i) => (
+                  <div key={i} className="flex items-center space-x-2 mt-2">
+                      <span className="font-mono">M{i+1}:</span>
+                      <input type="number" value={setting.initialValue} onChange={(e) => handleMarbleSettingChange('B', i, 'initialValue', e.target.value)} className="w-1/2 p-1 border rounded"/>
+                      <select value={setting.gender} onChange={(e) => handleMarbleSettingChange('B', i, 'gender', e.target.value)} className="w-1/2 p-1 border rounded">
+                          <option value="M">Male</option>
+                          <option value="F">Female</option>
+                      </select>
+                  </div>
+              ))}
+              <p className={`text-sm mt-2 ${teamBCurrentTotal !== totalInitialValue ? 'text-red-500' : 'text-green-600'}`}>
+                  Current Total: {teamBCurrentTotal} / {totalInitialValue}
               </p>
           </div>
           
@@ -161,10 +235,45 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
             </div>
           )}
           
-           {/* Marble Placement */}
+          {/* Step A: Configure Start Zones */}
+          <div className="border-t pt-4">
+              <h3 className="font-medium">Step 1: Configure Start Zones</h3>
+              <p className="text-sm text-gray-500 mb-2">Click a cell to set its starting permission: Grey (None), Blue (Team A), Red (Team B), or Green (Anyone).</p>
+              <div className="bg-gray-100 p-2 rounded mt-2">
+                  <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${gridSize}, 1fr)`}}>
+                      {Array.from({length: gridSize * gridSize}).map((_, i) => {
+                          const row = Math.floor(i / gridSize);
+                          const col = i % gridSize;
+                          const cellKey = `${row},${col}`;
+                          const zoneType = startZoneConfig[cellKey] ?? 'Both';
+                          return (
+                              <button
+                                  type="button"
+                                  key={cellKey}
+                                  onClick={() => handleZoneChange(row, col)}
+                                  className={clsx(
+                                      "aspect-square rounded text-xs transition-colors text-white font-bold flex items-center justify-center",
+                                      {
+                                          "bg-gray-400 hover:bg-gray-500": zoneType === 'None',
+                                          "bg-blue-500 hover:bg-blue-600": zoneType === 'A',
+                                          "bg-red-500 hover:bg-red-600": zoneType === 'B',
+                                          "bg-green-500 hover:bg-green-600": zoneType === 'Both',
+                                      }
+                                  )}
+                                  title={`Set start zone for (${row},${col}) to: ${zoneType}`}
+                              >
+                                {zoneType === 'A' || zoneType === 'B' ? zoneType : ''}
+                              </button>
+                          );
+                      })}
+                  </div>
+              </div>
+          </div>
+
+           {/* Step B: Marble Placement */}
            <div className="border-t pt-4">
-              <h3 className="font-medium">Marble Placement</h3>
-              <p className="text-sm text-gray-500 mb-2">Team A places on the top row, Team B on the bottom. Click to place/remove marbles.</p>
+              <h3 className="font-medium">Step 2: Place Marbles</h3>
+              <p className="text-sm text-gray-500 mb-2">Click on a configured start square to place or remove a marble. For green squares, placement will alternate between teams.</p>
               <p className="text-sm font-bold text-blue-600">Team A Placed: {teamAPositions.length} / {numMarbles}</p>
               <p className="text-sm font-bold text-red-600">Team B Placed: {teamBPositions.length} / {numMarbles}</p>
               <div className="bg-gray-100 p-2 rounded mt-2">
@@ -172,31 +281,28 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
                       {Array.from({length: gridSize * gridSize}).map((_, i) => {
                           const row = Math.floor(i / gridSize);
                           const col = i % gridSize;
-                          const isTeamAPlacementZone = row === 0;
-                          const isTeamBPlacementZone = row === gridSize - 1;
+                          const cellKey = `${row},${col}`;
+                          const zoneType = startZoneConfig[cellKey] ?? 'Both';
                           const isAPlaced = teamAPositions.some(p => p.row === row && p.col === col);
                           const isBPlaced = teamBPositions.some(p => p.row === row && p.col === col);
-
-                          const canPlaceA = isTeamAPlacementZone && teamAPositions.length < numMarbles;
-                          const canPlaceB = isTeamBPlacementZone && teamBPositions.length < numMarbles;
-
+                          const isDisabled = zoneType === 'None' || (isAPlaced && isBPlaced);
+                          
                           return (
                               <button
                                   type="button"
-                                  key={`${row}-${col}`}
+                                  key={cellKey}
                                   onClick={() => handlePlacement(row, col)}
-                                  disabled={!isTeamAPlacementZone && !isTeamBPlacementZone}
+                                  disabled={isDisabled}
                                   className={clsx(
-                                      "aspect-square rounded text-xs transition-colors",
+                                      "aspect-square rounded text-xs transition-colors flex items-center justify-center font-bold text-white",
                                       {
-                                          "bg-gray-200": !isTeamAPlacementZone && !isTeamBPlacementZone,
-                                          "bg-blue-200 hover:bg-blue-300": isTeamAPlacementZone && !isAPlaced,
-                                          "bg-red-200 hover:bg-red-300": isTeamBPlacementZone && !isBPlaced,
                                           "bg-blue-500": isAPlaced,
                                           "bg-red-500": isBPlaced,
-                                          "cursor-not-allowed opacity-50": 
-                                              (isTeamAPlacementZone && !isAPlaced && !canPlaceA) ||
-                                              (isTeamBPlacementZone && !isBPlaced && !canPlaceB)
+                                          "bg-gray-300 cursor-not-allowed": !isAPlaced && !isBPlaced && zoneType === 'None',
+                                          "bg-blue-200 hover:bg-blue-300": !isAPlaced && !isBPlaced && zoneType === 'A',
+                                          "bg-red-200 hover:bg-red-300": !isAPlaced && !isBPlaced && zoneType === 'B',
+                                          "bg-green-200 hover:bg-green-300": !isAPlaced && !isBPlaced && zoneType === 'Both',
+                                          "cursor-not-allowed opacity-50": isDisabled && !(isAPlaced || isBPlaced),
                                       }
                                   )}
                                   title={`Place marble at (${row},${col})`}

@@ -1,6 +1,7 @@
 export type Gender = 'M' | 'F';
 export type TeamID = 'A' | 'B';
 export type GameMode = 'Last Standing' | 'Rounds';
+export type StartZoneType = 'A' | 'B' | 'Both' | 'None';
 
 export interface MarblePosition {
   row: number;
@@ -38,10 +39,15 @@ export interface GameConfig {
   totalInitialValue: number;
   gameMode: GameMode;
   maxRounds: number;
-  marbleSettings: {
+  teamAMarbleSettings: {
     initialValue: number;
     gender: Gender;
   }[];
+  teamBMarbleSettings: {
+    initialValue: number;
+    gender: Gender;
+  }[];
+  startZoneConfig: Record<string, StartZoneType>;
   // Allows custom functions per cell
   customFunctions?: Record<string, string>; // e.g. { "0,0": "return x * 1.1;" }
   teamAPositions: MarblePosition[];
