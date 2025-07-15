@@ -32,6 +32,7 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
   const [teamAPositions, setTeamAPositions] = useState<MarblePosition[]>([]);
   const [teamBPositions, setTeamBPositions] = useState<MarblePosition[]>([]);
   const [startZoneConfig, setStartZoneConfig] = useState<Record<string, StartZoneType>>({});
+  const [placingTeam, setPlacingTeam] = useState<TeamID>('A');
 
   const handleNumMarblesChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const count = parseInt(e.target.value, 10);
@@ -89,36 +90,37 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
     const isOccupiedByA = teamAPositions.some(p => p.row === row && p.col === col);
     const isOccupiedByB = teamBPositions.some(p => p.row === row && p.col === col);
 
-    let placeFor: TeamID | null = null;
-    if (zoneType === 'A') {
-        placeFor = 'A';
-    } else if (zoneType === 'B') {
-        placeFor = 'B';
-    } else if (zoneType === 'Both') {
-        // For 'Both' zones, alternate placement between teams based on who has fewer marbles placed.
-        if (teamAPositions.length <= teamBPositions.length) {
-            placeFor = 'A';
-        } else {
-            placeFor = 'B';
-        }
-    }
+    // Determine which team can place here based on zone type and occupation
+    const canPlaceA = (zoneType === 'A' || zoneType === 'Both') && !isOccupiedByB;
+    const canPlaceB = (zoneType === 'B' || zoneType === 'Both') && !isOccupiedByA;
 
-    if (placeFor === 'A' && !isOccupiedByB) {
+    // If the currently selected team is 'A' and they are allowed to place here
+    if (placingTeam === 'A' && canPlaceA) {
         setTeamAPositions(prev => {
+            // If team A already has a marble here, clicking again removes it
             if (isOccupiedByA) {
                 return prev.filter(p => !(p.row === row && p.col === col));
-            } else if (prev.length < numMarbles) {
+            } 
+            // If the spot is free for A and the team has marbles left to place, add one
+            else if (prev.length < numMarbles) {
                 return [...prev, position];
             }
+            // Otherwise (team A is full), do nothing
             return prev;
         });
-    } else if (placeFor === 'B' && !isOccupiedByA) {
+    } 
+    // If the currently selected team is 'B' and they are allowed to place here
+    else if (placingTeam === 'B' && canPlaceB) {
         setTeamBPositions(prev => {
+            // If team B already has a marble here, clicking again removes it
             if (isOccupiedByB) {
                 return prev.filter(p => !(p.row === row && p.col === col));
-            } else if (prev.length < numMarbles) {
+            } 
+            // If the spot is free for B and the team has marbles left to place, add one
+            else if (prev.length < numMarbles) {
                 return [...prev, position];
             }
+            // Otherwise (team B is full), do nothing
             return prev;
         });
     }
@@ -152,10 +154,21 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
         }
     }
 
+    const finalCustomFunctions = { ...customFunctions };
+    for (let r = 0; r < gridSize; r++) {
+        for (let c = 0; c < gridSize; c++) {
+            const key = `${r},${c}`;
+            if (!finalCustomFunctions[key]) {
+                finalCustomFunctions[key] = defaultCellFunction;
+            }
+        }
+    }
+
     onSetupComplete({
       gridSize, numMarbles, totalInitialValue, gameMode, maxRounds, 
       teamAMarbleSettings, teamBMarbleSettings,
-      customFunctions, teamAPositions, teamBPositions, 
+      customFunctions: finalCustomFunctions, 
+      teamAPositions, teamBPositions, 
       startZoneConfig: finalStartZoneConfig
     });
   };
@@ -273,7 +286,32 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
            {/* Step B: Marble Placement */}
            <div className="border-t pt-4">
               <h3 className="font-medium">Step 2: Place Marbles</h3>
-              <p className="text-sm text-gray-500 mb-2">Click on a configured start square to place or remove a marble. For green squares, placement will alternate between teams.</p>
+              <p className="text-sm text-gray-500 mb-2">Select a team below, then click on a configured start square to place or remove one of their marbles.</p>
+              
+              <div className="flex items-center space-x-4 my-3 justify-center">
+                  <span className="text-sm font-medium">Placing for:</span>
+                  <button 
+                      type="button" 
+                      onClick={() => setPlacingTeam('A')} 
+                      className={clsx(
+                          'px-4 py-1 rounded text-white font-semibold transition-all',
+                          placingTeam === 'A' ? 'bg-blue-600 ring-2 ring-offset-2 ring-blue-500' : 'bg-blue-400 hover:bg-blue-500'
+                      )}
+                  >
+                      Team A
+                  </button>
+                  <button 
+                      type="button" 
+                      onClick={() => setPlacingTeam('B')} 
+                      className={clsx(
+                          'px-4 py-1 rounded text-white font-semibold transition-all',
+                          placingTeam === 'B' ? 'bg-red-600 ring-2 ring-offset-2 ring-red-500' : 'bg-red-400 hover:bg-red-500'
+                      )}
+                  >
+                      Team B
+                  </button>
+              </div>
+
               <p className="text-sm font-bold text-blue-600">Team A Placed: {teamAPositions.length} / {numMarbles}</p>
               <p className="text-sm font-bold text-red-600">Team B Placed: {teamBPositions.length} / {numMarbles}</p>
               <div className="bg-gray-100 p-2 rounded mt-2">
@@ -285,27 +323,69 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
                           const zoneType = startZoneConfig[cellKey] ?? 'Both';
                           const isAPlaced = teamAPositions.some(p => p.row === row && p.col === col);
                           const isBPlaced = teamBPositions.some(p => p.row === row && p.col === col);
-                          const isDisabled = zoneType === 'None' || (isAPlaced && isBPlaced);
                           
+                          let title = '';
+                          let isClickable = false;
+
+                          if (placingTeam === 'A') {
+                            isClickable = (zoneType === 'A' || zoneType === 'Both') && !isBPlaced;
+                          } else { // placingTeam === 'B'
+                            isClickable = (zoneType === 'B' || zoneType === 'Both') && !isAPlaced;
+                          }
+                          const isDisabled = !isClickable;
+
+                          if (isAPlaced) {
+                              const placedIndex = teamAPositions.findIndex(p => p.row === row && p.col === col);
+                              const marble = teamAMarbleSettings[placedIndex];
+                              title = `Team A Marble #${placedIndex + 1} (Value: ${marble.initialValue}, Gender: ${marble.gender === 'M' ? 'Male' : 'Female'}). Click to remove.`;
+                          } else if (isBPlaced) {
+                              const placedIndex = teamBPositions.findIndex(p => p.row === row && p.col === col);
+                              const marble = teamBMarbleSettings[placedIndex];
+                              title = `Team B Marble #${placedIndex + 1} (Value: ${marble.initialValue}, Gender: ${marble.gender === 'M' ? 'Male' : 'Female'}). Click to remove.`;
+                          } else {
+                              if (!isClickable) {
+                                  if (zoneType === 'None') title = "Cannot place in a 'None' zone.";
+                                  else if (placingTeam === 'A' && zoneType === 'B') title = "Team A cannot place in a 'Team B' zone.";
+                                  else if (placingTeam === 'B' && zoneType === 'A') title = "Team B cannot place in a 'Team A' zone.";
+                                  else title = "Cell is blocked or invalid for placement.";
+                              } else {
+                                  if (placingTeam === 'A') {
+                                      if (teamAPositions.length < numMarbles) {
+                                          const nextMarble = teamAMarbleSettings[teamAPositions.length];
+                                          title = `Click to place Team A Marble #${teamAPositions.length + 1} (Value: ${nextMarble.initialValue}, Gender: ${nextMarble.gender === 'M' ? 'Male' : 'Female'})`;
+                                      } else {
+                                          title = "Team A has placed all marbles.";
+                                      }
+                                  } else {
+                                      if (teamBPositions.length < numMarbles) {
+                                          const nextMarble = teamBMarbleSettings[teamBPositions.length];
+                                          title = `Click to place Team B Marble #${teamBPositions.length + 1} (Value: ${nextMarble.initialValue}, Gender: ${nextMarble.gender === 'M' ? 'Male' : 'Female'})`;
+                                      } else {
+                                          title = "Team B has placed all marbles.";
+                                      }
+                                  }
+                              }
+                          }
+
                           return (
                               <button
                                   type="button"
                                   key={cellKey}
                                   onClick={() => handlePlacement(row, col)}
                                   disabled={isDisabled}
+                                  title={title}
                                   className={clsx(
                                       "aspect-square rounded text-xs transition-colors flex items-center justify-center font-bold text-white",
                                       {
                                           "bg-blue-500": isAPlaced,
                                           "bg-red-500": isBPlaced,
-                                          "bg-gray-300 cursor-not-allowed": !isAPlaced && !isBPlaced && zoneType === 'None',
-                                          "bg-blue-200 hover:bg-blue-300": !isAPlaced && !isBPlaced && zoneType === 'A',
-                                          "bg-red-200 hover:bg-red-300": !isAPlaced && !isBPlaced && zoneType === 'B',
+                                          "bg-gray-300 cursor-not-allowed": !isAPlaced && !isBPlaced && !isClickable,
+                                          "bg-blue-200 hover:bg-blue-300": !isAPlaced && !isBPlaced && (zoneType === 'A' || (zoneType === 'Both' && placingTeam === 'A')),
+                                          "bg-red-200 hover:bg-red-300": !isAPlaced && !isBPlaced && (zoneType === 'B' || (zoneType === 'Both' && placingTeam === 'B')),
                                           "bg-green-200 hover:bg-green-300": !isAPlaced && !isBPlaced && zoneType === 'Both',
-                                          "cursor-not-allowed opacity-50": isDisabled && !(isAPlaced || isBPlaced),
+                                          "cursor-not-allowed opacity-50": isDisabled,
                                       }
                                   )}
-                                  title={`Place marble at (${row},${col})`}
                               >
                                 {isAPlaced ? 'A' : isBPlaced ? 'B' : ''}
                               </button>
