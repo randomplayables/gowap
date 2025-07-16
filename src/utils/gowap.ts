@@ -101,7 +101,7 @@ function resolveCellInteractions(state: GameState) {
                 handleTeamBattle(cell, state);
             } else {
                 // Interaction within the same team (reproduction)
-                handleTeamReproduction(cell, state);
+                handleTeamReproduction(cell.marbles, cell, state);
             }
         }
         // Apply cell function to any marbles on the cell, using the main state
@@ -161,13 +161,13 @@ function handleTeamBattle(cell: Cell, state: GameState) {
     }
   });
   
-  // After battle, check for reproduction among winners
-  handleTeamReproduction(cell, state);
+  // After battle, check for reproduction ONLY among the explicit winners.
+  handleTeamReproduction(winningMarbles, cell, state);
 }
 
 
-function handleTeamReproduction(cell: Cell, state: GameState) {
-    const aliveMarbles = cell.marbles.filter(m => m.isAlive);
+function handleTeamReproduction(marblesToCheck: Marble[], cell: Cell, state: GameState) {
+    const aliveMarbles = marblesToCheck.filter(m => m.isAlive);
     if (aliveMarbles.length < 2) return;
   
     const teamId = aliveMarbles[0].team;
