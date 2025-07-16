@@ -38,9 +38,14 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
     const count = parseInt(e.target.value, 10);
     setNumMarbles(count);
     const initialValue = count > 0 ? Math.floor(totalInitialValue / count) : 0;
-    const newSettings = Array.from({ length: count }, () => ({ initialValue, gender: 'M' as Gender }));
-    setTeamAMarbleSettings(newSettings);
-    setTeamBMarbleSettings(newSettings);
+    
+    // Create a function to generate a new settings array
+    const createNewSettings = () => 
+      Array.from({ length: count }, () => ({ initialValue, gender: 'M' as Gender }));
+
+    // Give each team its own, independent settings array
+    setTeamAMarbleSettings(createNewSettings());
+    setTeamBMarbleSettings(createNewSettings());
     setTeamAPositions([]);
     setTeamBPositions([]);
   };
@@ -49,11 +54,14 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
     const setter = team === 'A' ? setTeamAMarbleSettings : setTeamBMarbleSettings;
     setter(prevSettings => {
         const newSettings = [...prevSettings];
+        const newMarbleSetting = { ...newSettings[index] }; // Create a copy of the marble setting object
+
         if (field === 'initialValue') {
-            newSettings[index].initialValue = Number(value);
+            newMarbleSetting.initialValue = Number(value);
         } else {
-            newSettings[index].gender = value as Gender;
+            newMarbleSetting.gender = value as Gender;
         }
+        newSettings[index] = newMarbleSetting; // Place the copied object back into the array
         return newSettings;
     });
   };
