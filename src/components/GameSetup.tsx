@@ -14,6 +14,7 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
   const [totalInitialValue] = useState(100);
   const [gameMode, setGameMode] = useState<'Last Standing' | 'Rounds'>('Last Standing');
   const [maxRounds, setMaxRounds] = useState(50);
+  const [wrap, setWrap] = useState(true);
   
   // Separate marble settings for each team
   const [teamAMarbleSettings, setTeamAMarbleSettings] = useState<{ initialValue: number; gender: Gender }[]>(
@@ -173,7 +174,7 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
     }
 
     onSetupComplete({
-      gridSize, numMarbles, totalInitialValue, gameMode, maxRounds, 
+      gridSize, numMarbles, totalInitialValue, gameMode, maxRounds, wrap,
       teamAMarbleSettings, teamBMarbleSettings,
       customFunctions: finalCustomFunctions, 
       teamAPositions, teamBPositions, 
@@ -255,6 +256,18 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
               <input type="number" value={maxRounds} onChange={(e) => setMaxRounds(Number(e.target.value))} min="10" max="200" className="w-full p-2 border rounded"/>
             </div>
           )}
+
+          {/* Wrap Setting */}
+          <div className="flex items-center justify-between border-t pt-4">
+            <label htmlFor="wrap-checkbox" className="block text-sm font-medium">Wrap around board edges</label>
+            <input
+                id="wrap-checkbox"
+                type="checkbox"
+                checked={wrap}
+                onChange={(e) => setWrap(e.target.checked)}
+                className="h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            />
+          </div>
           
           {/* Step A: Configure Start Zones */}
           <div className="border-t pt-4">

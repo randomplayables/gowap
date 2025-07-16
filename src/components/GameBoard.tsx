@@ -4,9 +4,10 @@ import Marble from './Marble';
 
 interface GameBoardProps {
   grid: Grid;
+  showAllData: boolean;
 }
 
-export default function GameBoard({ grid }: GameBoardProps) {
+export default function GameBoard({ grid, showAllData }: GameBoardProps) {
   const gridSize = grid.length;
 
   return (
@@ -29,7 +30,7 @@ export default function GameBoard({ grid }: GameBoardProps) {
             title={`Function: ${cell.func}`}
           >
             {cell.marbles.map(marble => (
-              <Marble key={marble.id} marble={marble} />
+              <Marble key={marble.id} marble={marble} showAllData={showAllData} />
             ))}
           </div>
         ))}

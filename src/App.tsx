@@ -10,6 +10,7 @@ function App() {
   const { gameState, initializeGame, nextTurn, resetGame } = useGowapGame();
   const [isAutoPlayActive, setIsAutoPlayActive] = useState(false);
   const [autoPlaySpeed, setAutoPlaySpeed] = useState(1000); // Default speed: 1 second
+  const [showAllData, setShowAllData] = useState(false);
 
   // Effect to handle the auto-play game loop
   useEffect(() => {
@@ -38,6 +39,7 @@ function App() {
 
   const handleReset = () => {
     setIsAutoPlayActive(false); // Stop auto-play on reset
+    setShowAllData(false); // Hide data on reset
     resetGame();
   };
 
@@ -66,8 +68,10 @@ function App() {
                   onToggleAutoPlay={toggleAutoPlay}
                   autoPlaySpeed={autoPlaySpeed}
                   onAutoPlaySpeedChange={handleAutoPlaySpeedChange}
+                  showAllData={showAllData}
+                  onToggleShowAllData={() => setShowAllData(prev => !prev)}
                 />
-                <GameBoard grid={gameState.grid} />
+                <GameBoard grid={gameState.grid} showAllData={showAllData} />
               </div>
             )}
           </>

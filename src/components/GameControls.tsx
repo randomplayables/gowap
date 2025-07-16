@@ -9,6 +9,8 @@ interface GameControlsProps {
     onToggleAutoPlay: () => void;
     autoPlaySpeed: number;
     onAutoPlaySpeedChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    showAllData: boolean;
+    onToggleShowAllData: () => void;
   }
   
   export default function GameControls({ 
@@ -19,7 +21,9 @@ interface GameControlsProps {
     isAutoPlayActive,
     onToggleAutoPlay,
     autoPlaySpeed,
-    onAutoPlaySpeedChange
+    onAutoPlaySpeedChange,
+    showAllData,
+    onToggleShowAllData,
   }: GameControlsProps) {
     return (
       <div className="flex flex-col sm:flex-row justify-between items-center my-4 p-4 bg-white rounded-lg shadow-md space-y-4 sm:space-y-0">
@@ -42,6 +46,12 @@ interface GameControlsProps {
         </div>
 
         <div className="flex items-center space-x-2">
+          <button 
+            onClick={onToggleShowAllData}
+            className="bg-gray-200 text-gray-700 p-2 rounded hover:bg-gray-300 text-sm"
+          >
+            {showAllData ? 'Hide Data' : 'Show Data'}
+          </button>
           <button 
             onClick={onToggleAutoPlay} 
             className={clsx(

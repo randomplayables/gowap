@@ -48,6 +48,7 @@ export const useGowapGame = () => {
             winner: null,
             gameMode: config.gameMode,
             maxRounds: config.maxRounds,
+            wrap: config.wrap,
             battlePending: false,
         };
 

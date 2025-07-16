@@ -39,6 +39,7 @@ export interface GameConfig {
   totalInitialValue: number;
   gameMode: GameMode;
   maxRounds: number;
+  wrap: boolean;
   teamAMarbleSettings: {
     initialValue: number;
     gender: Gender;
@@ -62,5 +63,6 @@ export interface GameState {
   winner: TeamID | null;
   gameMode: GameMode;
   maxRounds: number;
+  wrap: boolean;
   battlePending?: boolean;
 }

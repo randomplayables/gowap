@@ -79,11 +79,21 @@ function moveMarbles(state: GameState) {
         let newRow = marble.position.row + rowChange;
         let newCol = marble.position.col + colChange;
 
-        // Boundary checks (simple wrap-around)
-        if (newRow < 0) newRow = gridSize - 1;
-        if (newRow >= gridSize) newRow = 0;
-        if (newCol < 0) newCol = gridSize - 1;
-        if (newCol >= gridSize) newCol = 0;
+        if (state.wrap) {
+            // Boundary checks (simple wrap-around)
+            if (newRow < 0) newRow = gridSize - 1;
+            if (newRow >= gridSize) newRow = 0;
+            if (newCol < 0) newCol = gridSize - 1;
+            if (newCol >= gridSize) newCol = 0;
+        } else {
+            // Boundary checks (clamp to edge)
+            if (newRow < 0 || newRow >= gridSize) {
+                newRow = marble.position.row;
+            }
+            if (newCol < 0 || newCol >= gridSize) {
+                newCol = marble.position.col;
+            }
+        }
 
         marble.position = { row: newRow, col: newCol };
       }
@@ -203,8 +213,13 @@ function applyCellFunctionToSurvivors(cell: Cell, state: GameState) {
                 try {
                     const func = new Function('x', cell.func);
                     const output = func(globalMarble.inputValue);
-                    globalMarble.outputValue = output;
-                    globalMarble.inputValue = output;
+
+                    if (output < 0) {
+                        globalMarble.isAlive = false;
+                    } else {
+                        globalMarble.outputValue = output;
+                        globalMarble.inputValue = output;
+                    }
                 } catch (e) {
                     console.error(`Error executing function at ${cell.position.row},${cell.position.col}:`, e);
                     globalMarble.outputValue = globalMarble.inputValue;
