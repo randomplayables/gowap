@@ -5,9 +5,10 @@ import Marble from './Marble';
 interface GameBoardProps {
   grid: Grid;
   showAllData: boolean;
+  isEventVisualizing: boolean;
 }
 
-export default function GameBoard({ grid, showAllData }: GameBoardProps) {
+export default function GameBoard({ grid, showAllData, isEventVisualizing }: GameBoardProps) {
   const gridSize = grid.length;
 
   return (
@@ -24,8 +25,11 @@ export default function GameBoard({ grid, showAllData }: GameBoardProps) {
           <div
             key={index}
             className={clsx(
-              "border border-gray-300 flex items-center justify-center relative aspect-square transition-colors",
-              cell.hasBattle && "bg-red-200 animate-pulse"
+              "border border-gray-300 flex flex-wrap items-center justify-center relative aspect-square transition-colors p-1", // Added flex-wrap and padding
+              isEventVisualizing && {
+                "bg-red-300 animate-pulse": cell.event === 'battle',
+                "bg-purple-300 animate-pulse": cell.event === 'reproduction',
+              }
             )}
             title={`Function: ${cell.func}`}
           >

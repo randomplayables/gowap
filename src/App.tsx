@@ -7,27 +7,22 @@ import GameOver from './components/GameOver';
 import './App.css';
 
 function App() {
-  const { gameState, initializeGame, nextTurn, resetGame } = useGowapGame();
+  const { gameState, initializeGame, nextTurn, resetGame, isProcessingTurn } = useGowapGame();
   const [isAutoPlayActive, setIsAutoPlayActive] = useState(false);
-  const [autoPlaySpeed, setAutoPlaySpeed] = useState(1000); // Default speed: 1 second
+  const [autoPlaySpeed, setAutoPlaySpeed] = useState(1000);
   const [showAllData, setShowAllData] = useState(false);
 
-  // Effect to handle the auto-play game loop
   useEffect(() => {
-    // Do nothing if auto-play is not active or the game is over
-    if (!isAutoPlayActive || !gameState || gameState.isGameOver) {
+    if (!isAutoPlayActive || !gameState || gameState.isGameOver || isProcessingTurn) {
       return;
     }
 
-    // Set up an interval to call nextTurn at the specified speed
-    const intervalId = setInterval(() => {
+    const timer = setTimeout(() => {
       nextTurn();
     }, autoPlaySpeed);
 
-    // Cleanup function to clear the interval when the component unmounts
-    // or when the dependencies of the effect change
-    return () => clearInterval(intervalId);
-  }, [isAutoPlayActive, autoPlaySpeed, gameState, nextTurn]);
+    return () => clearTimeout(timer);
+  }, [isAutoPlayActive, autoPlaySpeed, gameState, nextTurn, isProcessingTurn]);
 
   const toggleAutoPlay = () => {
     setIsAutoPlayActive(prev => !prev);
@@ -38,8 +33,8 @@ function App() {
   };
 
   const handleReset = () => {
-    setIsAutoPlayActive(false); // Stop auto-play on reset
-    setShowAllData(false); // Hide data on reset
+    setIsAutoPlayActive(false);
+    setShowAllData(false);
     resetGame();
   };
 
@@ -63,7 +58,7 @@ function App() {
                   onNextTurn={nextTurn} 
                   turn={gameState.turn} 
                   onReset={handleReset}
-                  isBattlePending={gameState.battlePending}
+                  isProcessingTurn={isProcessingTurn}
                   isAutoPlayActive={isAutoPlayActive}
                   onToggleAutoPlay={toggleAutoPlay}
                   autoPlaySpeed={autoPlaySpeed}
@@ -71,7 +66,11 @@ function App() {
                   showAllData={showAllData}
                   onToggleShowAllData={() => setShowAllData(prev => !prev)}
                 />
-                <GameBoard grid={gameState.grid} showAllData={showAllData} />
+                <GameBoard 
+                    grid={gameState.grid} 
+                    showAllData={showAllData} 
+                    isEventVisualizing={gameState.isEventVisualizing}
+                />
               </div>
             )}
           </>

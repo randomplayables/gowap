@@ -4,7 +4,7 @@ interface GameControlsProps {
     onNextTurn: () => void;
     onReset: () => void;
     turn: number;
-    isBattlePending?: boolean;
+    isProcessingTurn: boolean;
     isAutoPlayActive: boolean;
     onToggleAutoPlay: () => void;
     autoPlaySpeed: number;
@@ -17,7 +17,7 @@ interface GameControlsProps {
     onNextTurn, 
     turn, 
     onReset, 
-    isBattlePending,
+    isProcessingTurn,
     isAutoPlayActive,
     onToggleAutoPlay,
     autoPlaySpeed,
@@ -68,16 +68,14 @@ interface GameControlsProps {
           </button>
           <button 
             onClick={onNextTurn} 
-            disabled={isAutoPlayActive}
+            disabled={isAutoPlayActive || isProcessingTurn}
             className={clsx(
               "text-white p-2 rounded transition-colors w-32",
-              isBattlePending 
-                ? "bg-red-600 hover:bg-red-700" 
-                : "bg-green-600 hover:bg-green-700",
-              isAutoPlayActive && "bg-gray-400 cursor-not-allowed"
+              "bg-green-600 hover:bg-green-700",
+              (isAutoPlayActive || isProcessingTurn) && "bg-gray-400 cursor-not-allowed"
             )}
           >
-            {isBattlePending ? 'Resolve Battles' : 'Next Turn'}
+            {isProcessingTurn ? 'Processing...' : 'Next Turn'}
           </button>
         </div>
       </div>
