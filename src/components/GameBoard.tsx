@@ -4,11 +4,12 @@ import Marble from './Marble';
 
 interface GameBoardProps {
   grid: Grid;
+  turn: number;
   showAllData: boolean;
   isEventVisualizing: boolean;
 }
 
-export default function GameBoard({ grid, showAllData, isEventVisualizing }: GameBoardProps) {
+export default function GameBoard({ grid, turn, showAllData, isEventVisualizing }: GameBoardProps) {
   const gridSize = grid.length;
 
   return (
@@ -34,7 +35,7 @@ export default function GameBoard({ grid, showAllData, isEventVisualizing }: Gam
             title={`Function: ${cell.func}`}
           >
             {cell.marbles.map(marble => (
-              <Marble key={marble.id} marble={marble} showAllData={showAllData} />
+              <Marble key={marble.id} marble={marble} turn={turn} showAllData={showAllData} />
             ))}
           </div>
         ))}

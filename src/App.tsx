@@ -68,6 +68,7 @@ function App() {
                 />
                 <GameBoard 
                     grid={gameState.grid} 
+                    turn={gameState.turn}
                     showAllData={showAllData} 
                     isEventVisualizing={gameState.isEventVisualizing}
                 />
