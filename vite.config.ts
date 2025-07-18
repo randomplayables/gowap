@@ -15,7 +15,9 @@ export default defineConfig({
         // It might be localhost, or a specific IP like in the gothamloops example.
         target: 'http://localhost:3000', 
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''), // Standard rewrite to remove /api prefix
+        // CORRECTED: The rewrite now correctly passes the full path to the backend,
+        // which expects the /api prefix.
+        rewrite: (path) => path,
       },
     },
   },
