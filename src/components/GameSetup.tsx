@@ -4,11 +4,12 @@ import clsx from 'clsx';
 
 interface GameSetupProps {
   onSetupComplete: (config: GameConfig) => void;
+  mode: 'single-player' | 'gauntlet-create' | 'gauntlet-accept';
 }
 
 const defaultCellFunction = "return x * 1.5 + 1;";
 
-export default function GameSetup({ onSetupComplete }: GameSetupProps) {
+export default function GameSetup({ onSetupComplete, mode }: GameSetupProps) {
   const [gridSize, setGridSize] = useState(5);
   const [numMarbles, setNumMarbles] = useState(4);
   const [totalInitialValue] = useState(100);
@@ -16,7 +17,6 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
   const [maxRounds, setMaxRounds] = useState(50);
   const [wrap, setWrap] = useState(true);
   
-  // Separate marble settings for each team
   const [teamAMarbleSettings, setTeamAMarbleSettings] = useState<{ initialValue: number; gender: Gender }[]>(
     Array.from({ length: 4 }, () => ({ initialValue: Math.floor(100 / 4), gender: 'M' }))
   );
@@ -24,27 +24,27 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
     Array.from({ length: 4 }, () => ({ initialValue: Math.floor(100 / 4), gender: 'M' }))
   );
 
-  // Function editing state
   const [customFunctions, setCustomFunctions] = useState<Record<string, string>>({});
   const [editingCell, setEditingCell] = useState<{ row: number; col: number } | null>(null);
   const [currentFunctionBody, setCurrentFunctionBody] = useState(defaultCellFunction);
 
-  // Placement and zone configuration state
   const [teamAPositions, setTeamAPositions] = useState<MarblePosition[]>([]);
   const [teamBPositions, setTeamBPositions] = useState<MarblePosition[]>([]);
   const [startZoneConfig, setStartZoneConfig] = useState<Record<string, StartZoneType>>({});
   const [placingTeam, setPlacingTeam] = useState<TeamID>('A');
+
+  // New state for Gauntlet mode
+  const [wager, setWager] = useState(10);
+  const [opponentWager, setOpponentWager] = useState(5);
 
   const handleNumMarblesChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const count = parseInt(e.target.value, 10);
     setNumMarbles(count);
     const initialValue = count > 0 ? Math.floor(totalInitialValue / count) : 0;
     
-    // Create a function to generate a new settings array
     const createNewSettings = () => 
       Array.from({ length: count }, () => ({ initialValue, gender: 'M' as Gender }));
 
-    // Give each team its own, independent settings array
     setTeamAMarbleSettings(createNewSettings());
     setTeamBMarbleSettings(createNewSettings());
     setTeamAPositions([]);
@@ -55,14 +55,14 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
     const setter = team === 'A' ? setTeamAMarbleSettings : setTeamBMarbleSettings;
     setter(prevSettings => {
         const newSettings = [...prevSettings];
-        const newMarbleSetting = { ...newSettings[index] }; // Create a copy of the marble setting object
+        const newMarbleSetting = { ...newSettings[index] }; 
 
         if (field === 'initialValue') {
             newMarbleSetting.initialValue = Number(value);
         } else {
             newMarbleSetting.gender = value as Gender;
         }
-        newSettings[index] = newMarbleSetting; // Place the copied object back into the array
+        newSettings[index] = newMarbleSetting;
         return newSettings;
     });
   };
@@ -99,37 +99,28 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
     const isOccupiedByA = teamAPositions.some(p => p.row === row && p.col === col);
     const isOccupiedByB = teamBPositions.some(p => p.row === row && p.col === col);
 
-    // Determine which team can place here based on zone type and occupation
     const canPlaceA = (zoneType === 'A' || zoneType === 'Both') && !isOccupiedByB;
     const canPlaceB = (zoneType === 'B' || zoneType === 'Both') && !isOccupiedByA;
 
-    // If the currently selected team is 'A' and they are allowed to place here
     if (placingTeam === 'A' && canPlaceA) {
         setTeamAPositions(prev => {
-            // If team A already has a marble here, clicking again removes it
             if (isOccupiedByA) {
                 return prev.filter(p => !(p.row === row && p.col === col));
             } 
-            // If the spot is free for A and the team has marbles left to place, add one
             else if (prev.length < numMarbles) {
                 return [...prev, position];
             }
-            // Otherwise (team A is full), do nothing
             return prev;
         });
     } 
-    // If the currently selected team is 'B' and they are allowed to place here
     else if (placingTeam === 'B' && canPlaceB) {
         setTeamBPositions(prev => {
-            // If team B already has a marble here, clicking again removes it
             if (isOccupiedByB) {
                 return prev.filter(p => !(p.row === row && p.col === col));
             } 
-            // If the spot is free for B and the team has marbles left to place, add one
             else if (prev.length < numMarbles) {
                 return [...prev, position];
             }
-            // Otherwise (team B is full), do nothing
             return prev;
         });
     }
@@ -144,12 +135,16 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
         alert(`Team A's sum of marble values must be exactly ${totalInitialValue}.`);
         return;
     }
-    if (teamBCurrentTotal !== totalInitialValue) {
+    if (mode === 'single-player' && teamBCurrentTotal !== totalInitialValue) {
         alert(`Team B's sum of marble values must be exactly ${totalInitialValue}.`);
         return;
     }
-    if (teamAPositions.length !== numMarbles || teamBPositions.length !== numMarbles) {
-        alert(`Please place all ${numMarbles} marbles for each team.`);
+    if (teamAPositions.length !== numMarbles) {
+        alert(`Please place all ${numMarbles} marbles for Team A.`);
+        return;
+    }
+    if (mode === 'single-player' && teamBPositions.length !== numMarbles) {
+        alert(`Please place all ${numMarbles} marbles for Team B.`);
         return;
     }
     
@@ -173,21 +168,51 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
         }
     }
 
-    onSetupComplete({
+    const config: GameConfig = {
       gridSize, numMarbles, totalInitialValue, gameMode, maxRounds, wrap,
       teamAMarbleSettings, teamBMarbleSettings,
       customFunctions: finalCustomFunctions, 
       teamAPositions, teamBPositions, 
       startZoneConfig: finalStartZoneConfig
-    });
+    };
+
+    if (mode === 'single-player') {
+        onSetupComplete(config);
+    } else if (mode === 'gauntlet-create') {
+        // Post message to parent window (the platform)
+        window.parent.postMessage({
+            type: 'GAUNTLET_CHALLENGE_CREATE',
+            payload: {
+                gameId: 'gowap',
+                wager,
+                opponentWager,
+                setupConfig: config,
+                lockedSettings: [], // TODO: Implement setting locks
+                team: 'A',
+            }
+        }, '*'); // In production, you'd restrict this to the platform's origin
+    }
   };
 
   return (
     <>
       <div className="bg-white p-6 rounded-lg shadow-md max-w-lg mx-auto">
-        <h2 className="text-2xl font-bold mb-4">Game Setup</h2>
+        <h2 className="text-2xl font-bold mb-4">{mode === 'single-player' ? 'Game Setup' : 'Create Gauntlet Challenge'}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Grid Size */}
+          
+          {mode === 'gauntlet-create' && (
+              <div className="grid grid-cols-2 gap-4 border-b pb-4">
+                  <div>
+                      <label className="block text-sm font-medium">Your Wager</label>
+                      <input type="number" value={wager} onChange={(e) => setWager(Number(e.target.value))} min="1" className="w-full p-2 border rounded"/>
+                  </div>
+                  <div>
+                      <label className="block text-sm font-medium">Opponent's Wager</label>
+                      <input type="number" value={opponentWager} onChange={(e) => setOpponentWager(Number(e.target.value))} min="1" className="w-full p-2 border rounded"/>
+                  </div>
+              </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium">Grid Size</label>
             <select value={gridSize} onChange={(e) => setGridSize(Number(e.target.value))} className="w-full p-2 border rounded">
@@ -197,7 +222,6 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
             </select>
           </div>
 
-          {/* Number of Marbles */}
           <div>
             <label className="block text-sm font-medium">Number of Marbles per Team</label>
             <select value={numMarbles} onChange={handleNumMarblesChange} className="w-full p-2 border rounded">
@@ -205,7 +229,6 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
             </select>
           </div>
 
-          {/* Team A Marble Settings */}
           <div className="border-t pt-4">
               <h3 className="font-medium text-blue-600">Team A: Distribute Initial Value ({totalInitialValue} total)</h3>
               {teamAMarbleSettings.map((setting, i) => (
@@ -223,8 +246,8 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
               </p>
           </div>
 
-          {/* Team B Marble Settings */}
-          <div className="border-t pt-4">
+          {mode === 'single-player' && (
+            <div className="border-t pt-4">
               <h3 className="font-medium text-red-600">Team B: Distribute Initial Value ({totalInitialValue} total)</h3>
               {teamBMarbleSettings.map((setting, i) => (
                   <div key={i} className="flex items-center space-x-2 mt-2">
@@ -239,9 +262,9 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
               <p className={`text-sm mt-2 ${teamBCurrentTotal !== totalInitialValue ? 'text-red-500' : 'text-green-600'}`}>
                   Current Total: {teamBCurrentTotal} / {totalInitialValue}
               </p>
-          </div>
+            </div>
+          )}
           
-          {/* Game Mode */}
           <div>
             <label className="block text-sm font-medium">Game Mode</label>
             <select value={gameMode} onChange={(e) => setGameMode(e.target.value as any)} className="w-full p-2 border rounded">
@@ -257,7 +280,6 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
             </div>
           )}
 
-          {/* Wrap Setting */}
           <div className="flex items-center justify-between border-t pt-4">
             <label htmlFor="wrap-checkbox" className="block text-sm font-medium">Wrap around board edges</label>
             <input
@@ -269,7 +291,6 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
             />
           </div>
           
-          {/* Step A: Configure Start Zones */}
           <div className="border-t pt-4">
               <h3 className="font-medium">Step 1: Configure Start Zones</h3>
               <p className="text-sm text-gray-500 mb-2">Click a cell to set its starting permission: Grey (None), Blue (Team A), Red (Team B), or Green (Anyone).</p>
@@ -304,7 +325,6 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
               </div>
           </div>
 
-           {/* Step B: Marble Placement */}
            <div className="border-t pt-4">
               <h3 className="font-medium">Step 2: Place Marbles</h3>
               <p className="text-sm text-gray-500 mb-2">Select a team below, then click on a configured start square to place or remove one of their marbles.</p>
@@ -321,20 +341,24 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
                   >
                       Team A
                   </button>
-                  <button 
-                      type="button" 
-                      onClick={() => setPlacingTeam('B')} 
-                      className={clsx(
-                          'px-4 py-1 rounded text-white font-semibold transition-all',
-                          placingTeam === 'B' ? 'bg-red-600 ring-2 ring-offset-2 ring-red-500' : 'bg-red-400 hover:bg-red-500'
-                      )}
-                  >
-                      Team B
-                  </button>
+                   {mode === 'single-player' && (
+                    <button 
+                        type="button" 
+                        onClick={() => setPlacingTeam('B')} 
+                        className={clsx(
+                            'px-4 py-1 rounded text-white font-semibold transition-all',
+                            placingTeam === 'B' ? 'bg-red-600 ring-2 ring-offset-2 ring-red-500' : 'bg-red-400 hover:bg-red-500'
+                        )}
+                    >
+                        Team B
+                    </button>
+                   )}
               </div>
 
               <p className="text-sm font-bold text-blue-600">Team A Placed: {teamAPositions.length} / {numMarbles}</p>
-              <p className="text-sm font-bold text-red-600">Team B Placed: {teamBPositions.length} / {numMarbles}</p>
+              {mode === 'single-player' && (
+                <p className="text-sm font-bold text-red-600">Team B Placed: {teamBPositions.length} / {numMarbles}</p>
+              )}
               <div className="bg-gray-100 p-2 rounded mt-2">
                   <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${gridSize}, 1fr)`}}>
                       {Array.from({length: gridSize * gridSize}).map((_, i) => {
@@ -350,8 +374,8 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
 
                           if (placingTeam === 'A') {
                             isClickable = (zoneType === 'A' || zoneType === 'Both') && !isBPlaced;
-                          } else { // placingTeam === 'B'
-                            isClickable = (zoneType === 'B' || zoneType === 'Both') && !isAPlaced;
+                          } else {
+                            isClickable = mode === 'single-player' && (zoneType === 'B' || zoneType === 'Both') && !isAPlaced;
                           }
                           const isDisabled = !isClickable;
 
@@ -402,7 +426,7 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
                                           "bg-red-500": isBPlaced,
                                           "bg-gray-300 cursor-not-allowed": !isAPlaced && !isBPlaced && !isClickable,
                                           "bg-blue-200 hover:bg-blue-300": !isAPlaced && !isBPlaced && (zoneType === 'A' || (zoneType === 'Both' && placingTeam === 'A')),
-                                          "bg-red-200 hover:bg-red-300": !isAPlaced && !isBPlaced && (zoneType === 'B' || (zoneType === 'Both' && placingTeam === 'B')),
+                                          "bg-red-200 hover:bg-red-300": !isAPlaced && !isBPlaced && mode === 'single-player' && (zoneType === 'B' || (zoneType === 'Both' && placingTeam === 'B')),
                                           "bg-green-200 hover:bg-green-300": !isAPlaced && !isBPlaced && zoneType === 'Both',
                                           "cursor-not-allowed opacity-50": isDisabled,
                                       }
@@ -416,7 +440,6 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
               </div>
             </div>
 
-          {/* Cell Functions */}
           <div className="border-t pt-4">
             <h3 className="font-medium">Cell Functions (Optional)</h3>
             <p className="text-sm text-gray-500 mb-2">Click a cell to edit its function. `x` is the input value.</p>
@@ -445,11 +468,12 @@ export default function GameSetup({ onSetupComplete }: GameSetupProps) {
             </div>
           </div>
 
-          <button type="submit" className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition">Start Game</button>
+          <button type="submit" className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition">
+            {mode === 'single-player' ? 'Start Game' : 'Create Challenge'}
+          </button>
         </form>
       </div>
 
-      {/* Function Editor Modal */}
       {editingCell && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">

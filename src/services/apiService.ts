@@ -212,3 +212,31 @@ export async function saveGameData(turnNumber: number, turnData: any): Promise<a
     return { success: false, offline: true, error: (error as Error).message };
   }
 }
+
+/**
+ * Fetches the details of a specific Gauntlet challenge from the platform.
+ * @param {string} gauntletId - The ID of the gauntlet challenge.
+ * @returns {Promise<any>} A promise that resolves with the challenge data.
+ */
+export async function getGauntletChallenge(gauntletId: string): Promise<any> {
+    try {
+        console.log(`Fetching Gauntlet challenge data for ID: ${gauntletId}`);
+        const response = await fetch(`${API_BASE_URL}/gauntlet/challenges/${gauntletId}`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to fetch challenge data');
+        }
+
+        const data = await response.json();
+        console.log("Received challenge data:", data.challenge);
+        return data.challenge;
+    } catch (error) {
+        console.error('Error fetching gauntlet challenge data:', error);
+        throw error; // Re-throw to be caught by the calling component
+    }
+}

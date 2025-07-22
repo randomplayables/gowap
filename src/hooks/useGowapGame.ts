@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { GameState, Grid, TeamID, GameConfig, Team } from '../types';
 import { runMovementPhase, runResolutionPhase } from '../utils/gowap';
-import { initGameSession, saveGameData } from '../services/apiService';
+import { initGameSession, saveGameData, getGauntletChallenge } from '../services/apiService';
 
 const defaultCellFunction = "return x * 1.05;"; // Default function increases value by 5%
 const VISUALIZATION_DELAY = 500; // ms for the flash effect
@@ -32,20 +32,28 @@ export const useGowapGame = () => {
 
         const teams: Record<TeamID, Team> = { A: { id: 'A', marbles: [] }, B: { id: 'B', marbles: [] } };
         
-        for (let i = 0; i < config.numMarbles; i++) {
-            const settingA = config.teamAMarbleSettings[i];
-            teams.A.marbles.push({
-                id: `A-${i}`, team: 'A', gender: settingA.gender,
-                inputValue: settingA.initialValue, preFuncValue: settingA.initialValue, outputValue: settingA.initialValue,
-                position: config.teamAPositions[i], isAlive: true,
-            });
+        // Ensure settings arrays exist and have the correct length
+        const numMarbles = config.numMarbles || 0;
+        const teamAMarbleSettings = config.teamAMarbleSettings || [];
+        const teamBMarbleSettings = config.teamBMarbleSettings || [];
 
-            const settingB = config.teamBMarbleSettings[i];
-            teams.B.marbles.push({
-                id: `B-${i}`, team: 'B', gender: settingB.gender,
-                inputValue: settingB.initialValue, preFuncValue: settingB.initialValue, outputValue: settingB.initialValue,
-                position: config.teamBPositions[i], isAlive: true,
-            });
+        for (let i = 0; i < numMarbles; i++) {
+            if (teamAMarbleSettings[i] && config.teamAPositions[i]) {
+                const settingA = teamAMarbleSettings[i];
+                teams.A.marbles.push({
+                    id: `A-${i}`, team: 'A', gender: settingA.gender,
+                    inputValue: settingA.initialValue, preFuncValue: settingA.initialValue, outputValue: settingA.initialValue,
+                    position: config.teamAPositions[i], isAlive: true,
+                });
+            }
+            if (teamBMarbleSettings[i] && config.teamBPositions[i]) {
+                const settingB = teamBMarbleSettings[i];
+                teams.B.marbles.push({
+                    id: `B-${i}`, team: 'B', gender: settingB.gender,
+                    inputValue: settingB.initialValue, preFuncValue: settingB.initialValue, outputValue: settingB.initialValue,
+                    position: config.teamBPositions[i], isAlive: true,
+                });
+            }
         }
         
         const initialState: GameState = {
@@ -63,6 +71,38 @@ export const useGowapGame = () => {
             saveGameData(0, { event: 'game_initialized', config });
         }
     }, [gameSession]);
+    
+    // New function to initialize a game from Gauntlet data
+    const initializeGauntletGame = useCallback(async (gauntletId: string) => {
+        try {
+            const challenge = await getGauntletChallenge(gauntletId);
+            const challengerConfig = challenge.challenger.setupConfig;
+            
+            // NOTE: This is a temporary setup for the opponent (Team B).
+            // This will be replaced when we implement the opponent's setup flow.
+            // For now, we create a mirrored setup for Team B to make the game playable.
+            const opponentConfig = {
+                teamBMarbleSettings: challengerConfig.teamAMarbleSettings,
+                teamBPositions: challengerConfig.teamAPositions.map((p: any) => ({
+                    row: challengerConfig.gridSize - 1 - p.row,
+                    col: challengerConfig.gridSize - 1 - p.col
+                })),
+            };
+
+            const fullGameConfig: GameConfig = {
+                ...challengerConfig,
+                teamBMarbleSettings: opponentConfig.teamBMarbleSettings,
+                teamBPositions: opponentConfig.teamBPositions,
+            };
+
+            initializeGame(fullGameConfig);
+
+        } catch (error) {
+            console.error("Failed to initialize Gauntlet game:", error);
+            // You could set an error state here to show in the UI
+        }
+    }, [initializeGame]);
+
 
     const nextTurn = useCallback(async () => {
         if (!gameState || gameState.isGameOver || isProcessingTurn) return;
@@ -122,5 +162,5 @@ export const useGowapGame = () => {
         initSession();
     }, []);
 
-    return { gameState, initializeGame, nextTurn, resetGame, isProcessingTurn };
+    return { gameState, initializeGame, initializeGauntletGame, nextTurn, resetGame, isProcessingTurn };
 };

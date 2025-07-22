@@ -2,6 +2,7 @@ export type Gender = 'M' | 'F';
 export type TeamID = 'A' | 'B';
 export type GameMode = 'Last Standing' | 'Rounds';
 export type StartZoneType = 'A' | 'B' | 'Both' | 'None';
+export type GameModeType = 'single-player' | 'gauntlet'; // New type for mode selection
 
 export interface MarblePosition {
   row: number;
