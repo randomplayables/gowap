@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useGowapGame } from './hooks/useGowapGame';
 import GameSetup from './components/GameSetup';
 import GameBoard from './components/GameBoard';
@@ -14,16 +14,19 @@ function App() {
   const [showAllData, setShowAllData] = useState(false);
   const [gameMode, setGameMode] = useState<GameModeType | null>(null);
   const [isLoadingGauntlet, setIsLoadingGauntlet] = useState(false);
+  const gauntletInitCalled = useRef(false); // Ref to prevent re-running initialization
 
   // Check for Gauntlet mode from URL on initial load
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const gauntletMode = urlParams.get('gauntlet_mode');
+    
     if (gauntletMode === 'create' || gauntletMode === 'accept' || gauntletMode === 'play') {
         setGameMode('gauntlet');
-        if (gauntletMode === 'play') {
+        if (gauntletMode === 'play' && !gauntletInitCalled.current) {
             const gauntletId = urlParams.get('gauntletId');
-            if (gauntletId && !gameState) { // Only initialize if game isn't already running
+            if (gauntletId) {
+                gauntletInitCalled.current = true; // Set the flag to true
                 setIsLoadingGauntlet(true);
                 initializeGauntletGame(gauntletId).finally(() => {
                     setIsLoadingGauntlet(false);
@@ -31,7 +34,7 @@ function App() {
             }
         }
     }
-  }, [initializeGauntletGame, gameState]);
+  }, [initializeGauntletGame]); // Dependency array is now stable
 
   useEffect(() => {
     if (!isAutoPlayActive || !gameState || gameState.isGameOver || isProcessingTurn) {
