@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect } from 'react';
-import { GameState, Grid, TeamID, GameConfig, Team } from '../types';
+import { useState, useCallback } from 'react';
+import { GameState, Grid, TeamID, GameConfig, Team, MarblePosition } from '../types';
 import { runMovementPhase, runResolutionPhase } from '../utils/gowap';
 import { initGameSession, saveGameData, getGauntletChallenge } from '../services/apiService';
 
@@ -8,19 +8,15 @@ const VISUALIZATION_DELAY = 500; // ms for the flash effect
 
 export const useGowapGame = () => {
     const [gameState, setGameState] = useState<GameState | null>(null);
-    const [gameSession, setGameSession] = useState<any>(null);
     const [isProcessingTurn, setIsProcessingTurn] = useState(false);
 
-    // Effect to initialize the session when the game starts
-    useEffect(() => {
-        const initSession = async () => {
-            const session = await initGameSession();
-            setGameSession(session);
-        };
-        initSession();
-    }, []);
+    // NOTE: The automatic session initialization on component load has been removed.
+    // Session creation is now handled by the initializeGame function.
 
-    const initializeGame = useCallback((config: GameConfig) => {
+    const initializeGame = useCallback(async (config: GameConfig) => {
+        // A game session is now created only when the game is explicitly started.
+        const session = await initGameSession();
+        
         const grid: Grid = Array.from({ length: config.gridSize }, (_, r) =>
             Array.from({ length: config.gridSize }, (_, c) => ({
                 position: { row: r, col: c },
@@ -32,7 +28,6 @@ export const useGowapGame = () => {
 
         const teams: Record<TeamID, Team> = { A: { id: 'A', marbles: [] }, B: { id: 'B', marbles: [] } };
         
-        // Ensure settings arrays exist and have the correct length
         const numMarbles = config.numMarbles || 0;
         const teamAMarbleSettings = config.teamAMarbleSettings || [];
         const teamBMarbleSettings = config.teamBMarbleSettings || [];
@@ -67,23 +62,20 @@ export const useGowapGame = () => {
 
         setGameState(initialState);
 
-        if (gameSession) {
+        if (session) {
+            // Save the initial game state using the newly created session.
             saveGameData(0, { event: 'game_initialized', config });
         }
-    }, [gameSession]);
+    }, []); // Removed gameSession from dependency array
     
-    // New function to initialize a game from Gauntlet data
     const initializeGauntletGame = useCallback(async (gauntletId: string) => {
         try {
             const challenge = await getGauntletChallenge(gauntletId);
             const challengerConfig = challenge.challenger.setupConfig;
             
-            // NOTE: This is a temporary setup for the opponent (Team B).
-            // This will be replaced when we implement the opponent's setup flow.
-            // For now, we create a mirrored setup for Team B to make the game playable.
             const opponentConfig = {
                 teamBMarbleSettings: challengerConfig.teamAMarbleSettings,
-                teamBPositions: challengerConfig.teamAPositions.map((p: any) => ({
+                teamBPositions: challengerConfig.teamAPositions.map((p: MarblePosition) => ({
                     row: challengerConfig.gridSize - 1 - p.row,
                     col: challengerConfig.gridSize - 1 - p.col
                 })),
@@ -95,11 +87,11 @@ export const useGowapGame = () => {
                 teamBPositions: opponentConfig.teamBPositions,
             };
 
-            initializeGame(fullGameConfig);
+            // This will now correctly await the session creation inside initializeGame.
+            await initializeGame(fullGameConfig);
 
         } catch (error) {
             console.error("Failed to initialize Gauntlet game:", error);
-            // You could set an error state here to show in the UI
         }
     }, [initializeGame]);
 
@@ -109,57 +101,46 @@ export const useGowapGame = () => {
 
         setIsProcessingTurn(true);
 
-        // PHASE 1: Run movement and identify events
         const movementState = runMovementPhase(gameState);
         const hasEvents = movementState.grid.flat().some(cell => cell.event !== null);
         
         if (hasEvents) {
-            // Show the visual flashes
             setGameState({ ...movementState, isEventVisualizing: true });
-
-            // Wait for the flash animation duration
             await new Promise(resolve => setTimeout(resolve, VISUALIZATION_DELAY));
         }
 
-        // PHASE 2: Resolve the turn and get the final state
         const resolvedState = runResolutionPhase(movementState);
         setGameState({ ...resolvedState, isEventVisualizing: false });
 
-        // Save the final, resolved state to the database
-        if (gameSession) {
-            const turnData = {
-                event: 'turn_end',
-                turn: resolvedState.turn,
-                teams: resolvedState.teams,
-                grid: resolvedState.grid,
-                isGameOver: resolvedState.isGameOver,
-                winner: resolvedState.winner,
-            };
-            saveGameData(resolvedState.turn, turnData);
+        // The session is now stored in localStorage by apiService, so no need to pass it.
+        const turnData = {
+            event: 'turn_end',
+            turn: resolvedState.turn,
+            teams: resolvedState.teams,
+            grid: resolvedState.grid,
+            isGameOver: resolvedState.isGameOver,
+            winner: resolvedState.winner,
+        };
+        saveGameData(resolvedState.turn, turnData);
 
-            if (resolvedState.isGameOver) {
-                const finalGameData = {
-                    event: 'game_over',
-                    totalTurns: resolvedState.turn,
-                    winner: resolvedState.winner,
-                    finalTeamAState: resolvedState.teams.A,
-                    finalTeamBState: resolvedState.teams.B,
-                };
-                saveGameData(resolvedState.turn + 1, finalGameData);
-            }
+        if (resolvedState.isGameOver) {
+            const finalGameData = {
+                event: 'game_over',
+                totalTurns: resolvedState.turn,
+                winner: resolvedState.winner,
+                finalTeamAState: resolvedState.teams.A,
+                finalTeamBState: resolvedState.teams.B,
+            };
+            saveGameData(resolvedState.turn + 1, finalGameData);
         }
 
         setIsProcessingTurn(false);
-    }, [gameState, gameSession, isProcessingTurn]);
+    }, [gameState, isProcessingTurn]);
     
     const resetGame = useCallback(() => {
         setGameState(null);
         setIsProcessingTurn(false);
-        const initSession = async () => {
-            const session = await initGameSession();
-            setGameSession(session);
-        };
-        initSession();
+        // Session will be re-initialized on the next call to initializeGame
     }, []);
 
     return { gameState, initializeGame, initializeGauntletGame, nextTurn, resetGame, isProcessingTurn };
