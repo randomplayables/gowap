@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { GameConfig, Gender, MarblePosition, StartZoneType, TeamID } from '../types';
 import clsx from 'clsx';
 
@@ -31,11 +31,48 @@ export default function GameSetup({ onSetupComplete, mode }: GameSetupProps) {
   const [teamAPositions, setTeamAPositions] = useState<MarblePosition[]>([]);
   const [teamBPositions, setTeamBPositions] = useState<MarblePosition[]>([]);
   const [startZoneConfig, setStartZoneConfig] = useState<Record<string, StartZoneType>>({});
-  const [placingTeam, setPlacingTeam] = useState<TeamID>('A');
+  const [placingTeam, setPlacingTeam] = useState<TeamID>(mode === 'gauntlet-accept' ? 'B' : 'A');
 
-  // New state for Gauntlet mode
   const [wager, setWager] = useState(10);
   const [opponentWager, setOpponentWager] = useState(5);
+  const [isReadyForAccept, setIsReadyForAccept] = useState(false);
+
+  useEffect(() => {
+    if (mode === 'gauntlet-accept') {
+        window.parent.postMessage({ type: 'GAUNTLET_OPPONENT_SETUP_READY' }, '*');
+    }
+  }, [mode]);
+
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+        if (event.data?.type === 'GAUNTLET_CHALLENGE_DATA') {
+            const challenge = event.data.payload;
+            const challengerConfig = challenge.challenger.setupConfig;
+            console.log("Received challenger config from platform:", challengerConfig);
+
+            setGridSize(challengerConfig.gridSize);
+            setNumMarbles(challengerConfig.numMarbles);
+            setGameMode(challengerConfig.gameMode);
+            setMaxRounds(challengerConfig.maxRounds);
+            setWrap(challengerConfig.wrap);
+            setTeamAMarbleSettings(challengerConfig.teamAMarbleSettings);
+            setCustomFunctions(challengerConfig.customFunctions);
+            setTeamAPositions(challengerConfig.teamAPositions);
+            setStartZoneConfig(challengerConfig.startZoneConfig);
+            
+            const count = challengerConfig.numMarbles;
+            const initialValue = count > 0 ? Math.floor(totalInitialValue / count) : 0;
+            setTeamBMarbleSettings(Array.from({ length: count }, () => ({ initialValue, gender: 'M' as Gender })));
+            setIsReadyForAccept(true);
+        }
+    };
+    if (mode === 'gauntlet-accept') {
+        window.addEventListener('message', handleMessage);
+    }
+    return () => {
+        window.removeEventListener('message', handleMessage);
+    };
+  }, [mode, totalInitialValue]);
 
   const handleNumMarblesChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const count = parseInt(e.target.value, 10);
@@ -45,9 +82,11 @@ export default function GameSetup({ onSetupComplete, mode }: GameSetupProps) {
     const createNewSettings = () => 
       Array.from({ length: count }, () => ({ initialValue, gender: 'M' as Gender }));
 
-    setTeamAMarbleSettings(createNewSettings());
+    if (mode !== 'gauntlet-accept') {
+      setTeamAMarbleSettings(createNewSettings());
+      setTeamAPositions([]);
+    }
     setTeamBMarbleSettings(createNewSettings());
-    setTeamAPositions([]);
     setTeamBPositions([]);
   };
 
@@ -131,42 +170,43 @@ export default function GameSetup({ onSetupComplete, mode }: GameSetupProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (teamACurrentTotal !== totalInitialValue) {
-        alert(`Team A's sum of marble values must be exactly ${totalInitialValue}.`);
-        return;
+
+    // --- NEW, EXPLICIT VALIDATION LOGIC ---
+    if (mode === 'single-player') {
+      if (teamACurrentTotal !== totalInitialValue) {
+        alert(`Team A's sum of marble values must be exactly ${totalInitialValue}.`); return;
+      }
+      if (teamAPositions.length !== numMarbles) {
+        alert(`Please place all ${numMarbles} marbles for Team A.`); return;
+      }
+      if (teamBCurrentTotal !== totalInitialValue) {
+        alert(`Team B's sum of marble values must be exactly ${totalInitialValue}.`); return;
+      }
+      if (teamBPositions.length !== numMarbles) {
+        alert(`Please place all ${numMarbles} marbles for Team B.`); return;
+      }
+    } else if (mode === 'gauntlet-create') {
+      if (teamACurrentTotal !== totalInitialValue) {
+        alert(`Team A's sum of marble values must be exactly ${totalInitialValue}.`); return;
+      }
+      if (teamAPositions.length !== numMarbles) {
+        alert(`Please place all ${numMarbles} marbles for Team A.`); return;
+      }
+    } else if (mode === 'gauntlet-accept') {
+      if (teamBCurrentTotal !== totalInitialValue) {
+        alert(`Team B's sum of marble values must be exactly ${totalInitialValue}.`); return;
+      }
+      if (teamBPositions.length !== numMarbles) {
+        alert(`Please place all ${numMarbles} marbles for Team B.`); return;
+      }
     }
-    if (mode === 'single-player' && teamBCurrentTotal !== totalInitialValue) {
-        alert(`Team B's sum of marble values must be exactly ${totalInitialValue}.`);
-        return;
-    }
-    if (teamAPositions.length !== numMarbles) {
-        alert(`Please place all ${numMarbles} marbles for Team A.`);
-        return;
-    }
-    if (mode === 'single-player' && teamBPositions.length !== numMarbles) {
-        alert(`Please place all ${numMarbles} marbles for Team B.`);
-        return;
-    }
+    // --- END OF NEW VALIDATION LOGIC ---
     
     const finalStartZoneConfig = { ...startZoneConfig };
-    for (let r = 0; r < gridSize; r++) {
-        for (let c = 0; c < gridSize; c++) {
-            const key = `${r},${c}`;
-            if (!finalStartZoneConfig[key]) {
-                finalStartZoneConfig[key] = 'Both';
-            }
-        }
-    }
+    for (let r = 0; r < gridSize; r++) for (let c = 0; c < gridSize; c++) if (!finalStartZoneConfig[`${r},${c}`]) finalStartZoneConfig[`${r},${c}`] = 'Both';
 
     const finalCustomFunctions = { ...customFunctions };
-    for (let r = 0; r < gridSize; r++) {
-        for (let c = 0; c < gridSize; c++) {
-            const key = `${r},${c}`;
-            if (!finalCustomFunctions[key]) {
-                finalCustomFunctions[key] = defaultCellFunction;
-            }
-        }
-    }
+    for (let r = 0; r < gridSize; r++) for (let c = 0; c < gridSize; c++) if (!finalCustomFunctions[`${r},${c}`]) finalCustomFunctions[`${r},${c}`] = defaultCellFunction;
 
     const config: GameConfig = {
       gridSize, numMarbles, totalInitialValue, gameMode, maxRounds, wrap,
@@ -179,25 +219,24 @@ export default function GameSetup({ onSetupComplete, mode }: GameSetupProps) {
     if (mode === 'single-player') {
         onSetupComplete(config);
     } else if (mode === 'gauntlet-create') {
-        // Post message to parent window (the platform)
-        window.parent.postMessage({
-            type: 'GAUNTLET_CHALLENGE_CREATE',
-            payload: {
-                gameId: 'gowap',
-                wager,
-                opponentWager,
-                setupConfig: config,
-                lockedSettings: [], // TODO: Implement setting locks
-                team: 'A',
-            }
-        }, '*'); // In production, you'd restrict this to the platform's origin
+        window.parent.postMessage({ type: 'GAUNTLET_CHALLENGE_CREATE', payload: { gameId: 'gowap', wager, opponentWager, setupConfig: config, lockedSettings: [], team: 'A' } }, '*');
+    } else if (mode === 'gauntlet-accept') {
+        const opponentSetup = { teamBMarbleSettings, teamBPositions };
+        window.parent.postMessage({ type: 'GAUNTLET_OPPONENT_SETUP_COMPLETE', payload: opponentSetup }, '*');
     }
   };
 
+  if (mode === 'gauntlet-accept' && !isReadyForAccept) {
+    return <div className="text-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-emerald-500 mx-auto"></div><p className="mt-2 text-gray-600">Waiting for challenge data from platform...</p></div>
+  }
+  
   return (
     <>
       <div className="bg-white p-6 rounded-lg shadow-md max-w-lg mx-auto">
-        <h2 className="text-2xl font-bold mb-4">{mode === 'single-player' ? 'Game Setup' : 'Create Gauntlet Challenge'}</h2>
+        <h2 className="text-2xl font-bold mb-4">{
+            mode === 'single-player' ? 'Game Setup' : 
+            mode === 'gauntlet-create' ? 'Create Gauntlet Challenge' : 'Opponent Setup'
+        }</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           
           {mode === 'gauntlet-create' && (
@@ -215,7 +254,7 @@ export default function GameSetup({ onSetupComplete, mode }: GameSetupProps) {
 
           <div>
             <label className="block text-sm font-medium">Grid Size</label>
-            <select value={gridSize} onChange={(e) => setGridSize(Number(e.target.value))} className="w-full p-2 border rounded">
+            <select value={gridSize} onChange={(e) => setGridSize(Number(e.target.value))} className="w-full p-2 border rounded" disabled={mode === 'gauntlet-accept'}>
               <option value={5}>5x5</option>
               <option value={9}>9x9</option>
               <option value={11}>11x11</option>
@@ -224,29 +263,31 @@ export default function GameSetup({ onSetupComplete, mode }: GameSetupProps) {
 
           <div>
             <label className="block text-sm font-medium">Number of Marbles per Team</label>
-            <select value={numMarbles} onChange={handleNumMarblesChange} className="w-full p-2 border rounded">
+            <select value={numMarbles} onChange={handleNumMarblesChange} className="w-full p-2 border rounded" disabled={mode === 'gauntlet-accept'}>
               {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
 
-          <div className="border-t pt-4">
-              <h3 className="font-medium text-blue-600">Team A: Distribute Initial Value ({totalInitialValue} total)</h3>
-              {teamAMarbleSettings.map((setting, i) => (
-                  <div key={i} className="flex items-center space-x-2 mt-2">
-                      <span className="font-mono">M{i+1}:</span>
-                      <input type="number" value={setting.initialValue} onChange={(e) => handleMarbleSettingChange('A', i, 'initialValue', e.target.value)} className="w-1/2 p-1 border rounded"/>
-                      <select value={setting.gender} onChange={(e) => handleMarbleSettingChange('A', i, 'gender', e.target.value)} className="w-1/2 p-1 border rounded">
-                          <option value="M">Male</option>
-                          <option value="F">Female</option>
-                      </select>
-                  </div>
-              ))}
-              <p className={`text-sm mt-2 ${teamACurrentTotal !== totalInitialValue ? 'text-red-500' : 'text-green-600'}`}>
-                  Current Total: {teamACurrentTotal} / {totalInitialValue}
-              </p>
-          </div>
+          {mode !== 'gauntlet-accept' && (
+            <div className="border-t pt-4">
+                <h3 className="font-medium text-blue-600">Team A: Distribute Initial Value ({totalInitialValue} total)</h3>
+                {teamAMarbleSettings.map((setting, i) => (
+                    <div key={i} className="flex items-center space-x-2 mt-2">
+                        <span className="font-mono">M{i+1}:</span>
+                        <input type="number" value={setting.initialValue} onChange={(e) => handleMarbleSettingChange('A', i, 'initialValue', e.target.value)} className="w-1/2 p-1 border rounded"/>
+                        <select value={setting.gender} onChange={(e) => handleMarbleSettingChange('A', i, 'gender', e.target.value)} className="w-1/2 p-1 border rounded">
+                            <option value="M">Male</option>
+                            <option value="F">Female</option>
+                        </select>
+                    </div>
+                ))}
+                <p className={`text-sm mt-2 ${teamACurrentTotal !== totalInitialValue ? 'text-red-500' : 'text-green-600'}`}>
+                    Current Total: {teamACurrentTotal} / {totalInitialValue}
+                </p>
+            </div>
+          )}
 
-          {mode === 'single-player' && (
+          {(mode === 'single-player' || mode === 'gauntlet-accept') && (
             <div className="border-t pt-4">
               <h3 className="font-medium text-red-600">Team B: Distribute Initial Value ({totalInitialValue} total)</h3>
               {teamBMarbleSettings.map((setting, i) => (
@@ -267,7 +308,7 @@ export default function GameSetup({ onSetupComplete, mode }: GameSetupProps) {
           
           <div>
             <label className="block text-sm font-medium">Game Mode</label>
-            <select value={gameMode} onChange={(e) => setGameMode(e.target.value as any)} className="w-full p-2 border rounded">
+            <select value={gameMode} onChange={(e) => setGameMode(e.target.value as any)} className="w-full p-2 border rounded" disabled={mode === 'gauntlet-accept'}>
               <option value="Last Standing">Last Standing</option>
               <option value="Rounds">Rounds</option>
             </select>
@@ -276,7 +317,7 @@ export default function GameSetup({ onSetupComplete, mode }: GameSetupProps) {
           {gameMode === 'Rounds' && (
             <div>
               <label className="block text-sm font-medium">Number of Rounds</label>
-              <input type="number" value={maxRounds} onChange={(e) => setMaxRounds(Number(e.target.value))} min="10" max="200" className="w-full p-2 border rounded"/>
+              <input type="number" value={maxRounds} onChange={(e) => setMaxRounds(Number(e.target.value))} min="10" max="200" className="w-full p-2 border rounded" disabled={mode === 'gauntlet-accept'}/>
             </div>
           )}
 
@@ -288,6 +329,7 @@ export default function GameSetup({ onSetupComplete, mode }: GameSetupProps) {
                 checked={wrap}
                 onChange={(e) => setWrap(e.target.checked)}
                 className="h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                disabled={mode === 'gauntlet-accept'}
             />
           </div>
           
@@ -316,6 +358,7 @@ export default function GameSetup({ onSetupComplete, mode }: GameSetupProps) {
                                       }
                                   )}
                                   title={`Set start zone for (${row},${col}) to: ${zoneType}`}
+                                  disabled={mode === 'gauntlet-accept'}
                               >
                                 {zoneType === 'A' || zoneType === 'B' ? zoneType : ''}
                               </button>
@@ -331,17 +374,19 @@ export default function GameSetup({ onSetupComplete, mode }: GameSetupProps) {
               
               <div className="flex items-center space-x-4 my-3 justify-center">
                   <span className="text-sm font-medium">Placing for:</span>
-                  <button 
-                      type="button" 
-                      onClick={() => setPlacingTeam('A')} 
-                      className={clsx(
-                          'px-4 py-1 rounded text-white font-semibold transition-all',
-                          placingTeam === 'A' ? 'bg-blue-600 ring-2 ring-offset-2 ring-blue-500' : 'bg-blue-400 hover:bg-blue-500'
-                      )}
-                  >
-                      Team A
-                  </button>
-                   {mode === 'single-player' && (
+                  {mode !== 'gauntlet-accept' && (
+                    <button 
+                        type="button" 
+                        onClick={() => setPlacingTeam('A')} 
+                        className={clsx(
+                            'px-4 py-1 rounded text-white font-semibold transition-all',
+                            placingTeam === 'A' ? 'bg-blue-600 ring-2 ring-offset-2 ring-blue-500' : 'bg-blue-400 hover:bg-blue-500'
+                        )}
+                    >
+                        Team A
+                    </button>
+                  )}
+                   {(mode === 'single-player' || mode === 'gauntlet-accept') && (
                     <button 
                         type="button" 
                         onClick={() => setPlacingTeam('B')} 
@@ -355,10 +400,8 @@ export default function GameSetup({ onSetupComplete, mode }: GameSetupProps) {
                    )}
               </div>
 
-              <p className="text-sm font-bold text-blue-600">Team A Placed: {teamAPositions.length} / {numMarbles}</p>
-              {mode === 'single-player' && (
-                <p className="text-sm font-bold text-red-600">Team B Placed: {teamBPositions.length} / {numMarbles}</p>
-              )}
+              {mode !== 'gauntlet-accept' && <p className="text-sm font-bold text-blue-600">Team A Placed: {teamAPositions.length} / {numMarbles}</p>}
+              <p className="text-sm font-bold text-red-600">Team B Placed: {teamBPositions.length} / {numMarbles}</p>
               <div className="bg-gray-100 p-2 rounded mt-2">
                   <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${gridSize}, 1fr)`}}>
                       {Array.from({length: gridSize * gridSize}).map((_, i) => {
@@ -372,10 +415,10 @@ export default function GameSetup({ onSetupComplete, mode }: GameSetupProps) {
                           let title = '';
                           let isClickable = false;
 
-                          if (placingTeam === 'A') {
+                          if (placingTeam === 'A' && mode !== 'gauntlet-accept') {
                             isClickable = (zoneType === 'A' || zoneType === 'Both') && !isBPlaced;
-                          } else {
-                            isClickable = mode === 'single-player' && (zoneType === 'B' || zoneType === 'Both') && !isAPlaced;
+                          } else if (placingTeam === 'B') {
+                            isClickable = (zoneType === 'B' || zoneType === 'Both') && !isAPlaced;
                           }
                           const isDisabled = !isClickable;
 
@@ -417,7 +460,7 @@ export default function GameSetup({ onSetupComplete, mode }: GameSetupProps) {
                                   type="button"
                                   key={cellKey}
                                   onClick={() => handlePlacement(row, col)}
-                                  disabled={isDisabled}
+                                  disabled={isDisabled || (isAPlaced && mode === 'gauntlet-accept')}
                                   title={title}
                                   className={clsx(
                                       "aspect-square rounded text-xs transition-colors flex items-center justify-center font-bold text-white",
@@ -425,10 +468,10 @@ export default function GameSetup({ onSetupComplete, mode }: GameSetupProps) {
                                           "bg-blue-500": isAPlaced,
                                           "bg-red-500": isBPlaced,
                                           "bg-gray-300 cursor-not-allowed": !isAPlaced && !isBPlaced && !isClickable,
-                                          "bg-blue-200 hover:bg-blue-300": !isAPlaced && !isBPlaced && (zoneType === 'A' || (zoneType === 'Both' && placingTeam === 'A')),
-                                          "bg-red-200 hover:bg-red-300": !isAPlaced && !isBPlaced && mode === 'single-player' && (zoneType === 'B' || (zoneType === 'Both' && placingTeam === 'B')),
-                                          "bg-green-200 hover:bg-green-300": !isAPlaced && !isBPlaced && zoneType === 'Both',
-                                          "cursor-not-allowed opacity-50": isDisabled,
+                                          "bg-blue-200 hover:bg-blue-300": !isAPlaced && !isBPlaced && (zoneType === 'A' || (zoneType === 'Both' && placingTeam === 'A' && mode !== 'gauntlet-accept')),
+                                          "bg-red-200 hover:bg-red-300": !isAPlaced && !isBPlaced && (zoneType === 'B' || (zoneType === 'Both' && placingTeam === 'B')),
+                                          "bg-green-200 hover:bg-green-300": !isAPlaced && !isBPlaced && !isAPlaced && !isBPlaced && zoneType === 'Both' && (placingTeam === 'A' && mode !== 'gauntlet-accept' || placingTeam === 'B'),
+                                          "cursor-not-allowed opacity-50": isDisabled || (isAPlaced && mode === 'gauntlet-accept'),
                                       }
                                   )}
                               >
@@ -459,6 +502,7 @@ export default function GameSetup({ onSetupComplete, mode }: GameSetupProps) {
                                     hasCustomFunc ? "bg-indigo-300 hover:bg-indigo-400" : "bg-gray-300 hover:bg-gray-400"
                                 )}
                                 title={hasCustomFunc ? `Custom f(x) at (${row},${col})` : `Default f(x) at (${row},${col})`}
+                                disabled={mode === 'gauntlet-accept'}
                             >
                                f(x)
                             </button>
@@ -469,7 +513,8 @@ export default function GameSetup({ onSetupComplete, mode }: GameSetupProps) {
           </div>
 
           <button type="submit" className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition">
-            {mode === 'single-player' ? 'Start Game' : 'Create Challenge'}
+            {mode === 'single-player' ? 'Start Game' : 
+             mode === 'gauntlet-create' ? 'Create Challenge' : 'Finalize Setup'}
           </button>
         </form>
       </div>
