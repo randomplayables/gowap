@@ -66,11 +66,18 @@ function App() {
   const renderContent = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const gauntletModeParam = urlParams.get('gauntlet_mode');
+    const challengerWager = urlParams.get('challengerWager');
+    const opponentWager = urlParams.get('opponentWager');
 
     // If a game is active, render the board/game over screen
     if (gameState) {
       return gameState.isGameOver ? (
-        <GameOver winner={gameState.winner} onRestart={handleReset} />
+        <GameOver 
+            winner={gameState.winner} 
+            onRestart={handleReset} 
+            challengerWager={challengerWager}
+            opponentWager={opponentWager}
+        />
       ) : (
         <div>
           <GameControls 
