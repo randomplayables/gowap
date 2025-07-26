@@ -77,6 +77,7 @@ function App() {
             onRestart={handleReset} 
             challengerWager={challengerWager}
             opponentWager={opponentWager}
+            terminationReason={gameState.terminationReason}
         />
       ) : (
         <div>

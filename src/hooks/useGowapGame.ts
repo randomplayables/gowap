@@ -1,14 +1,44 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { GameState, Grid, TeamID, GameConfig, Team } from '../types';
 import { runMovementPhase, runResolutionPhase } from '../utils/gowap';
 import { initGameSession, saveGameData, getGauntletChallenge, resolveGauntletChallenge } from '../services/apiService';
 
 const defaultCellFunction = "return x * 1.05;"; // Default function increases value by 5%
 const VISUALIZATION_DELAY = 500; // ms for the flash effect
+const STATUS_POLL_INTERVAL = 15000; // 15 seconds
 
 export const useGowapGame = () => {
     const [gameState, setGameState] = useState<GameState | null>(null);
     const [isProcessingTurn, setIsProcessingTurn] = useState(false);
+
+    // Polling effect for Gauntlet mode
+    useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const gauntletId = urlParams.get('gauntletId');
+        
+        if (!gauntletId || !gameState || gameState.isGameOver) {
+            return;
+        }
+
+        const intervalId = setInterval(async () => {
+            try {
+                const challenge = await getGauntletChallenge(gauntletId);
+                if (challenge.status !== 'in_progress') {
+                    console.log('Gauntlet match ended on platform. Ending local game.');
+                    setGameState(prev => prev ? ({
+                        ...prev,
+                        isGameOver: true,
+                        winner: challenge.winner,
+                        terminationReason: 'abandonment'
+                    }) : null);
+                }
+            } catch (error) {
+                console.error("Error polling for challenge status:", error);
+            }
+        }, STATUS_POLL_INTERVAL);
+
+        return () => clearInterval(intervalId);
+    }, [gameState]);
 
     const initializeGame = useCallback(async (config: GameConfig) => {
         const session = await initGameSession();

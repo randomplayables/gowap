@@ -3,6 +3,7 @@ export type TeamID = 'A' | 'B';
 export type GameMode = 'Last Standing' | 'Rounds';
 export type StartZoneType = 'A' | 'B' | 'Both' | 'None';
 export type GameModeType = 'single-player' | 'gauntlet'; // New type for mode selection
+export type TerminationReason = 'abandonment' | 'completion'; // To track how the game ended
 
 export interface MarblePosition {
   row: number;
@@ -69,4 +70,5 @@ export interface GameState {
   wrap: boolean;
   // This flag is now used to signal that a visual event (flash) is happening
   isEventVisualizing: boolean;
+  terminationReason?: TerminationReason; // To show why the game ended
 }
