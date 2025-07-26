@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
-import { GameState, Grid, TeamID, GameConfig, Team, MarblePosition } from '../types';
+import { GameState, Grid, TeamID, GameConfig, Team } from '../types';
 import { runMovementPhase, runResolutionPhase } from '../utils/gowap';
-import { initGameSession, saveGameData, getGauntletChallenge } from '../services/apiService';
+import { initGameSession, saveGameData, getGauntletChallenge, resolveGauntletChallenge } from '../services/apiService';
 
 const defaultCellFunction = "return x * 1.05;"; // Default function increases value by 5%
 const VISUALIZATION_DELAY = 500; // ms for the flash effect
@@ -10,11 +10,7 @@ export const useGowapGame = () => {
     const [gameState, setGameState] = useState<GameState | null>(null);
     const [isProcessingTurn, setIsProcessingTurn] = useState(false);
 
-    // NOTE: The automatic session initialization on component load has been removed.
-    // Session creation is now handled by the initializeGame function.
-
     const initializeGame = useCallback(async (config: GameConfig) => {
-        // A game session is now created only when the game is explicitly started.
         const session = await initGameSession();
         
         const grid: Grid = Array.from({ length: config.gridSize }, (_, r) =>
@@ -63,23 +59,17 @@ export const useGowapGame = () => {
         setGameState(initialState);
 
         if (session) {
-            // Save the initial game state using the newly created session.
             saveGameData(0, { event: 'game_initialized', config });
         }
-    }, []); // Removed gameSession from dependency array
+    }, []);
     
     const initializeGauntletGame = useCallback(async (gauntletId: string) => {
         try {
             const challenge = await getGauntletChallenge(gauntletId);
             const challengerConfig = challenge.challenger.setupConfig;
             
-            const opponentConfig = {
-                teamBMarbleSettings: challengerConfig.teamAMarbleSettings,
-                teamBPositions: challengerConfig.teamAPositions.map((p: MarblePosition) => ({
-                    row: challengerConfig.gridSize - 1 - p.row,
-                    col: challengerConfig.gridSize - 1 - p.col
-                })),
-            };
+            // This now correctly merges the challenger's and opponent's configs
+            const opponentConfig = challenge.opponent.setupConfig;
 
             const fullGameConfig: GameConfig = {
                 ...challengerConfig,
@@ -87,14 +77,12 @@ export const useGowapGame = () => {
                 teamBPositions: opponentConfig.teamBPositions,
             };
 
-            // This will now correctly await the session creation inside initializeGame.
             await initializeGame(fullGameConfig);
 
         } catch (error) {
             console.error("Failed to initialize Gauntlet game:", error);
         }
     }, [initializeGame]);
-
 
     const nextTurn = useCallback(async () => {
         if (!gameState || gameState.isGameOver || isProcessingTurn) return;
@@ -112,7 +100,6 @@ export const useGowapGame = () => {
         const resolvedState = runResolutionPhase(movementState);
         setGameState({ ...resolvedState, isEventVisualizing: false });
 
-        // The session is now stored in localStorage by apiService, so no need to pass it.
         const turnData = {
             event: 'turn_end',
             turn: resolvedState.turn,
@@ -132,6 +119,17 @@ export const useGowapGame = () => {
                 finalTeamBState: resolvedState.teams.B,
             };
             saveGameData(resolvedState.turn + 1, finalGameData);
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const gauntletId = urlParams.get('gauntletId');
+            if (gauntletId && resolvedState.winner) {
+                try {
+                    await resolveGauntletChallenge(gauntletId, resolvedState.winner);
+                } catch (error) {
+                    console.error("Failed to resolve gauntlet on platform:", error);
+                    // You could show an error to the user here if desired
+                }
+            }
         }
 
         setIsProcessingTurn(false);
@@ -140,7 +138,6 @@ export const useGowapGame = () => {
     const resetGame = useCallback(() => {
         setGameState(null);
         setIsProcessingTurn(false);
-        // Session will be re-initialized on the next call to initializeGame
     }, []);
 
     return { gameState, initializeGame, initializeGauntletGame, nextTurn, resetGame, isProcessingTurn };

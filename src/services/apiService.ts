@@ -228,8 +228,15 @@ export async function getGauntletChallenge(gauntletId: string): Promise<any> {
         });
 
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to fetch challenge data');
+            // This now checks for HTML responses and provides a better error.
+            const text = await response.text();
+            try {
+                const errorData = JSON.parse(text);
+                throw new Error(errorData.error || 'Failed to fetch challenge data');
+            } catch (e) {
+                console.error("API returned non-JSON response:", text);
+                throw new Error("Received an invalid response from the server (likely HTML). Check for middleware redirects.");
+            }
         }
 
         const data = await response.json();
@@ -238,5 +245,41 @@ export async function getGauntletChallenge(gauntletId: string): Promise<any> {
     } catch (error) {
         console.error('Error fetching gauntlet challenge data:', error);
         throw error; // Re-throw to be caught by the calling component
+    }
+}
+
+/**
+ * Reports the winner of a Gauntlet challenge to the platform to finalize it.
+ * @param {string} gauntletId - The ID of the gauntlet challenge.
+ * @param {string} winner - The winning team ('A' or 'B').
+ * @returns {Promise<any>} A promise that resolves with the server's response.
+ */
+export async function resolveGauntletChallenge(gauntletId: string, winner: 'A' | 'B'): Promise<any> {
+    try {
+        console.log(`Resolving Gauntlet challenge ${gauntletId} with winner: ${winner}`);
+        const { token } = getContextFromURL();
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const response = await fetch(`${API_BASE_URL}/gauntlet/challenges/${gauntletId}/resolve`, {
+            method: 'POST',
+            headers,
+            credentials: 'include',
+            body: JSON.stringify({ winner }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to resolve challenge');
+        }
+
+        const result = await response.json();
+        console.log("Challenge resolved successfully:", result);
+        return result;
+    } catch (error) {
+        console.error(`Error resolving gauntlet challenge ${gauntletId}:`, error);
+        throw error;
     }
 }
