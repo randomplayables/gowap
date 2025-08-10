@@ -2,7 +2,7 @@ import { defineConfig, ProxyOptions } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // https://vitejs.dev/config/
-export default defineConfig(({ command, mode }) => {
+export default defineConfig(({ mode }) => {
   const isProduction = mode === 'production';
 
   // Define the base server configuration object
@@ -27,16 +27,16 @@ export default defineConfig(({ command, mode }) => {
     };
   }
 
-  const config = {
+  const config: any = {
     plugins: [react()],
     server: serverConfig, // Use the serverConfig object we just built
   };
 
-  if (command === 'build') {
-    (config as any).build = {
-      esbuild: {
-        drop: ['console', 'debugger'],
-      },
+  // This top-level esbuild configuration will correctly remove console logs
+  // during the production build.
+  if (isProduction) {
+    config.esbuild = {
+      drop: ['console', 'debugger'],
     };
   }
   

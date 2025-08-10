@@ -6,7 +6,7 @@
 
 // This now correctly uses the proxy for development and a real URL for production
 const API_BASE_URL = import.meta.env.MODE === 'production'
-  ? 'https://randomplayables.com/api'
+  ? 'https://www.randomplayables.com/api'
   : '/api';
 
 console.log("Using API base URL:", API_BASE_URL);
