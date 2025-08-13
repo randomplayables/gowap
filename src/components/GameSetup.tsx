@@ -491,7 +491,9 @@ export default function GameSetup({ onSetupComplete, mode }: GameSetupProps) {
                     {Array.from({length: gridSize * gridSize}).map((_, i) => {
                         const row = Math.floor(i / gridSize);
                         const col = i % gridSize;
-                        const hasCustomFunc = !!customFunctions[`${row},${col}`];
+                        const cellKey = `${row},${col}`;
+                        const cellFunction = customFunctions[cellKey];
+                        const hasCustomFunc = cellFunction && cellFunction !== defaultCellFunction;
                         return (
                             <button
                                 type="button"
@@ -502,7 +504,6 @@ export default function GameSetup({ onSetupComplete, mode }: GameSetupProps) {
                                     hasCustomFunc ? "bg-indigo-300 hover:bg-indigo-400" : "bg-gray-300 hover:bg-gray-400"
                                 )}
                                 title={hasCustomFunc ? `Custom f(x) at (${row},${col})` : `Default f(x) at (${row},${col})`}
-                                disabled={mode === 'gauntlet-accept'}
                             >
                                f(x)
                             </button>
@@ -529,10 +530,15 @@ export default function GameSetup({ onSetupComplete, mode }: GameSetupProps) {
                     onChange={(e) => setCurrentFunctionBody(e.target.value)}
                     className="w-full h-32 p-2 border rounded bg-gray-50 font-mono text-sm"
                     placeholder="e.g., return x * 1.5;"
+                    readOnly={mode === 'gauntlet-accept'}
                 />
                 <div className="flex justify-end space-x-2 mt-4">
-                    <button onClick={() => setEditingCell(null)} className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Cancel</button>
-                    <button onClick={handleSaveFunction} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Save Function</button>
+                    <button onClick={() => setEditingCell(null)} className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">
+                      {mode === 'gauntlet-accept' ? 'Close' : 'Cancel'}
+                    </button>
+                    {mode !== 'gauntlet-accept' && (
+                      <button onClick={handleSaveFunction} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Save Function</button>
+                    )}
                 </div>
             </div>
         </div>
