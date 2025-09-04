@@ -9,6 +9,13 @@ interface GameSetupProps {
 
 const defaultCellFunction = "return x * 1.5 + 1;";
 
+const otherCategorySubTypes = [
+    { value: 'gamePublicationPoints', label: 'Game Publications' },
+    { value: 'codeContributions', label: 'Code Contributions (Sketches)' },
+    { value: 'contentCreation', label: 'Content Creation (Visualizations, Instruments)' },
+    { value: 'communityEngagement', label: 'Community Engagement (Stack Q&A)' },
+];
+
 export default function GameSetup({ onSetupComplete, mode }: GameSetupProps) {
   const [gridSize, setGridSize] = useState(5);
   const [numMarbles, setNumMarbles] = useState(4);
@@ -35,6 +42,7 @@ export default function GameSetup({ onSetupComplete, mode }: GameSetupProps) {
 
   const [wager, setWager] = useState(10);
   const [opponentWager, setOpponentWager] = useState(5);
+  const [wagerSubCategory, setWagerSubCategory] = useState(otherCategorySubTypes[0].value);
   const [isReadyForAccept, setIsReadyForAccept] = useState(false);
 
   useEffect(() => {
@@ -171,7 +179,6 @@ export default function GameSetup({ onSetupComplete, mode }: GameSetupProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // --- NEW, EXPLICIT VALIDATION LOGIC ---
     if (mode === 'single-player') {
       if (teamACurrentTotal !== totalInitialValue) {
         alert(`Team A's sum of marble values must be exactly ${totalInitialValue}.`); return;
@@ -200,7 +207,6 @@ export default function GameSetup({ onSetupComplete, mode }: GameSetupProps) {
         alert(`Please place all ${numMarbles} marbles for Team B.`); return;
       }
     }
-    // --- END OF NEW VALIDATION LOGIC ---
     
     const finalStartZoneConfig = { ...startZoneConfig };
     for (let r = 0; r < gridSize; r++) for (let c = 0; c < gridSize; c++) if (!finalStartZoneConfig[`${r},${c}`]) finalStartZoneConfig[`${r},${c}`] = 'Both';
@@ -219,7 +225,7 @@ export default function GameSetup({ onSetupComplete, mode }: GameSetupProps) {
     if (mode === 'single-player') {
         onSetupComplete(config);
     } else if (mode === 'gauntlet-create') {
-        window.parent.postMessage({ type: 'GAUNTLET_CHALLENGE_CREATE', payload: { gameId: 'gowap', wager, opponentWager, setupConfig: config, lockedSettings: [], team: 'A' } }, '*');
+        window.parent.postMessage({ type: 'GAUNTLET_CHALLENGE_CREATE', payload: { gameId: 'gowap', wager, opponentWager, wagerSubCategory, setupConfig: config, lockedSettings: [], team: 'A' } }, '*');
     } else if (mode === 'gauntlet-accept') {
         const opponentSetup = { teamBMarbleSettings, teamBPositions };
         window.parent.postMessage({ type: 'GAUNTLET_OPPONENT_SETUP_COMPLETE', payload: opponentSetup }, '*');
@@ -248,6 +254,15 @@ export default function GameSetup({ onSetupComplete, mode }: GameSetupProps) {
                   <div>
                       <label className="block text-sm font-medium">Opponent's Wager</label>
                       <input type="number" value={opponentWager} onChange={(e) => setOpponentWager(Number(e.target.value))} min="1" className="w-full p-2 border rounded"/>
+                  </div>
+                   <div className="col-span-2">
+                      <label className="block text-sm font-medium">Wager From (Points Category)</label>
+                      <select value={wagerSubCategory} onChange={(e) => setWagerSubCategory(e.target.value)} className="w-full p-2 border rounded">
+                         {otherCategorySubTypes.map(subType => (
+                            <option key={subType.value} value={subType.value}>{subType.label}</option>
+                         ))}
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">Opponent must match the wager from the same point category.</p>
                   </div>
               </div>
           )}
